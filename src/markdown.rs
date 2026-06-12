@@ -33,6 +33,32 @@ pub struct OutlineItem {
     pub line: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum InlineKind {
+    Text,
+    Image,
+    Link,
+    Autolink,
+    Code,
+    BoldItalic,
+    Bold,
+    Italic,
+    Strikethrough,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct InlineSegment {
+    pub kind: InlineKind,
+    pub text: String,
+    pub target: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct InlineLine {
+    pub line: usize,
+    pub segments: Vec<InlineSegment>,
+}
+
 pub fn classify_document(content: &str) -> Vec<ClassifiedLine> {
     let mut in_code = false;
     let mut lang = String::new();
@@ -47,7 +73,7 @@ pub fn classify_document(content: &str) -> Vec<ClassifiedLine> {
                         kind: LineKind::CodeBlock,
                         text: line.to_string(),
                         level: None,
-                        language: Some(old),
+                        language: if old.is_empty() { None } else { Some(old) },
                     };
                 }
                 lang = line.trim_start_matches("```").trim().to_string();
@@ -134,6 +160,17 @@ pub fn classify_document(content: &str) -> Vec<ClassifiedLine> {
         .collect()
 }
 
+pub fn tokenize_inline_document(content: &str) -> Vec<InlineLine> {
+    content
+        .split('\n')
+        .enumerate()
+        .map(|(line, text)| InlineLine {
+            line,
+            segments: tokenize_inline(text),
+        })
+        .collect()
+}
+
 pub fn outline(content: &str) -> Vec<OutlineItem> {
     content
         .split('\n')
@@ -154,10 +191,10 @@ fn heading(line: &str) -> Option<(u8, &str)> {
     while level < bytes.len() && bytes[level] == b'#' && level < 6 {
         level += 1;
     }
-    if level == 0 || bytes.get(level) != Some(&b' ') {
+    if level == 0 {
         return None;
     }
-    Some((level as u8, line[level + 1..].trim()))
+    Some((level as u8, line[level..].trim()))
 }
 
 fn is_hr(s: &str) -> bool {
@@ -228,45 +265,150 @@ pub fn render_editor_line<'a>(raw: &'a str, theme: &Theme) -> Line<'a> {
 }
 
 fn render_inline<'a>(raw: &'a str, theme: &Theme) -> Line<'a> {
-    let mut spans = Vec::new();
-    let mut rest = raw;
-    while !rest.is_empty() {
-        if let Some(stripped) = rest.strip_prefix("**") {
-            if let Some(end) = stripped.find("**") {
-                let (text, after) = stripped.split_at(end);
-                spans.push(Span::styled(
-                    text.to_string(),
-                    Style::default().fg(theme.warn).add_modifier(Modifier::BOLD),
-                ));
-                rest = &after[2..];
-                continue;
+    let spans: Vec<Span> = tokenize_inline(raw)
+        .into_iter()
+        .map(|seg| match seg.kind {
+            InlineKind::Text => Span::styled(seg.text, Style::default().fg(theme.text)),
+            InlineKind::Image => Span::styled(
+                format!("![{}]", seg.text),
+                Style::default()
+                    .fg(theme.info)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+            InlineKind::Link | InlineKind::Autolink => Span::styled(
+                seg.text,
+                Style::default()
+                    .fg(theme.info)
+                    .add_modifier(Modifier::UNDERLINED),
+            ),
+            InlineKind::Code => {
+                Span::styled(seg.text, Style::default().fg(theme.code).bg(theme.bg2))
             }
-        }
-        if let Some(stripped) = rest.strip_prefix('`') {
-            if let Some(end) = stripped.find('`') {
-                let (text, after) = stripped.split_at(end);
-                spans.push(Span::styled(
-                    text.to_string(),
-                    Style::default().fg(theme.code).bg(theme.bg2),
-                ));
-                rest = &after[1..];
-                continue;
-            }
-        }
-        if let Some(ch) = rest.chars().next() {
-            let len = ch.len_utf8();
-            spans.push(Span::styled(
-                ch.to_string(),
-                Style::default().fg(theme.text),
-            ));
-            rest = &rest[len..];
-        }
-    }
+            InlineKind::Bold => Span::styled(
+                seg.text,
+                Style::default().fg(theme.warn).add_modifier(Modifier::BOLD),
+            ),
+            InlineKind::Italic => Span::styled(
+                seg.text,
+                Style::default()
+                    .fg(theme.text_muted)
+                    .add_modifier(Modifier::ITALIC),
+            ),
+            InlineKind::BoldItalic => Span::styled(
+                seg.text,
+                Style::default()
+                    .fg(theme.warn)
+                    .add_modifier(Modifier::BOLD | Modifier::ITALIC),
+            ),
+            InlineKind::Strikethrough => Span::styled(
+                seg.text,
+                Style::default()
+                    .fg(theme.text_muted)
+                    .add_modifier(Modifier::CROSSED_OUT),
+            ),
+        })
+        .collect();
     if spans.is_empty() {
         Line::from("")
     } else {
         Line::from(spans)
     }
+}
+
+pub fn tokenize_inline(text: &str) -> Vec<InlineSegment> {
+    let mut segments = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        if let Some((seg, next)) = match_inline(rest) {
+            segments.push(seg);
+            rest = next;
+            continue;
+        }
+        let ch = rest.chars().next().unwrap();
+        segments.push(InlineSegment {
+            kind: InlineKind::Text,
+            text: ch.to_string(),
+            target: None,
+        });
+        rest = &rest[ch.len_utf8()..];
+    }
+    coalesce_text(segments)
+}
+
+fn match_inline(rest: &str) -> Option<(InlineSegment, &str)> {
+    if let Some(stripped) = rest.strip_prefix("![") {
+        if let Some((alt, target, next)) = bracket_target(stripped) {
+            return Some((segment(InlineKind::Image, alt, Some(target)), next));
+        }
+    }
+    if let Some(stripped) = rest.strip_prefix('[') {
+        if let Some((text, target, next)) = bracket_target(stripped) {
+            return Some((segment(InlineKind::Link, text, Some(target)), next));
+        }
+    }
+    if let Some(stripped) = rest.strip_prefix('<') {
+        if let Some(end) = stripped.find('>') {
+            let target = &stripped[..end];
+            if target.contains("://") || target.contains('@') {
+                return Some((
+                    segment(InlineKind::Autolink, target, Some(target)),
+                    &stripped[end + 1..],
+                ));
+            }
+        }
+    }
+    for (open, close, kind) in [
+        ("`", "`", InlineKind::Code),
+        ("***", "***", InlineKind::BoldItalic),
+        ("___", "___", InlineKind::BoldItalic),
+        ("**", "**", InlineKind::Bold),
+        ("__", "__", InlineKind::Bold),
+        ("*", "*", InlineKind::Italic),
+        ("_", "_", InlineKind::Italic),
+        ("~~", "~~", InlineKind::Strikethrough),
+    ] {
+        if let Some(stripped) = rest.strip_prefix(open) {
+            if let Some(end) = stripped.find(close) {
+                let text = &stripped[..end];
+                if !text.is_empty() {
+                    return Some((segment(kind, text, None), &stripped[end + close.len()..]));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn bracket_target(stripped_after_open_bracket: &str) -> Option<(&str, &str, &str)> {
+    let end_text = stripped_after_open_bracket.find("](")?;
+    let text = &stripped_after_open_bracket[..end_text];
+    let after = &stripped_after_open_bracket[end_text + 2..];
+    let end_target = after.find(')')?;
+    Some((text, &after[..end_target], &after[end_target + 1..]))
+}
+
+fn segment(kind: InlineKind, text: &str, target: Option<&str>) -> InlineSegment {
+    InlineSegment {
+        kind,
+        text: text.to_string(),
+        target: target.map(str::to_string),
+    }
+}
+
+fn coalesce_text(segments: Vec<InlineSegment>) -> Vec<InlineSegment> {
+    let mut out: Vec<InlineSegment> = Vec::new();
+    for seg in segments {
+        if seg.kind == InlineKind::Text {
+            if let Some(prev) = out.last_mut() {
+                if prev.kind == InlineKind::Text {
+                    prev.text.push_str(&seg.text);
+                    continue;
+                }
+            }
+        }
+        out.push(seg);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -311,5 +453,27 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn headings_match_bun_optional_space_behavior() {
+        assert_eq!(heading("#NoSpace"), Some((1, "NoSpace")));
+        assert_eq!(heading("###### Six"), Some((6, "Six")));
+        assert_eq!(heading("####### Seven"), Some((6, "# Seven")));
+    }
+
+    #[test]
+    fn tokenizes_inline_markdown_shapes() {
+        let segs = tokenize_inline(
+            "![alt](img.png) [site](https://x.test) `code` ***bi*** **b** _i_ ~~s~~",
+        );
+        let kinds: Vec<_> = segs.into_iter().map(|s| s.kind).collect();
+        assert!(kinds.contains(&InlineKind::Image));
+        assert!(kinds.contains(&InlineKind::Link));
+        assert!(kinds.contains(&InlineKind::Code));
+        assert!(kinds.contains(&InlineKind::BoldItalic));
+        assert!(kinds.contains(&InlineKind::Bold));
+        assert!(kinds.contains(&InlineKind::Italic));
+        assert!(kinds.contains(&InlineKind::Strikethrough));
     }
 }

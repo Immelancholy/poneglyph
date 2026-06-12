@@ -39,6 +39,8 @@ enum Command {
     Stats { file: PathBuf },
     /// Print markdown classification JSON for oracle tests
     Classify { file: PathBuf },
+    /// Print inline markdown segment JSON for oracle tests
+    Inline { file: PathBuf },
     /// Print wrapped preview viewport lines JSON for oracle tests
     PreviewLines {
         file: PathBuf,
@@ -95,6 +97,14 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&markdown::classify_document(&content))?
+            );
+            return Ok(());
+        }
+        Some(Command::Inline { file }) => {
+            let content = std::fs::read_to_string(file)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&markdown::tokenize_inline_document(&content))?
             );
             return Ok(());
         }
