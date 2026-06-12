@@ -143,10 +143,12 @@ fn draw_preview(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
         area.width.saturating_sub(4) as usize,
         theme,
     );
+    let max_scroll = app.max_preview_scroll().max(1);
+    let percent = ((app.preview_scroll * 100) / max_scroll).min(100);
     let p = Paragraph::new(lines)
         .block(
             Block::default()
-                .title(" Preview ")
+                .title(format!(" Preview · {}% ", percent))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
@@ -163,7 +165,7 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let start = app.scroll.min(all.len().saturating_sub(1));
     let number_w = all.len().to_string().len().max(3);
     let mut lines = Vec::new();
-    for (idx, raw) in all.into_iter().enumerate().skip(start).take(visible_h) {
+    for (idx, raw) in all.iter().copied().enumerate().skip(start).take(visible_h) {
         let mut spans = vec![Span::styled(
             format!("{:>width$} ", idx + 1, width = number_w),
             Style::default().fg(theme.text_muted),
@@ -197,10 +199,16 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
             lines.push(Line::from(spans));
         }
     }
+    let visible_end = (start + visible_h).min(all.len());
     let p = Paragraph::new(lines)
         .block(
             Block::default()
-                .title(" Editor ")
+                .title(format!(
+                    " Editor · lines {}-{} / {} ",
+                    start + 1,
+                    visible_end,
+                    all.len()
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
@@ -470,7 +478,20 @@ fn draw_footer(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
             theme.dim(),
         ),
         Span::styled("  │  ", Style::default().fg(theme.border_strong)),
+        Span::styled(scroll_status(app), theme.dim()),
+        Span::styled("  │  ", Style::default().fg(theme.border_strong)),
         Span::styled(&app.status, Style::default().fg(theme.text_muted)),
     ]);
     frame.render_widget(Paragraph::new(text).style(theme.elevated()), area);
+}
+
+fn scroll_status(app: &App) -> String {
+    match app.mode {
+        ViewMode::Preview => {
+            let max = app.max_preview_scroll().max(1);
+            let percent = ((app.preview_scroll * 100) / max).min(100);
+            format!("Scroll {}%", percent)
+        }
+        ViewMode::Edit => format!("Top line {}", app.scroll + 1),
+    }
 }
