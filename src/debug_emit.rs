@@ -3,7 +3,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     app::{selected_window, App, FocusPane, ViewMode},
-    markdown::{classify_document, LineKind},
+    markdown::render_preview_document,
+    theme::Theme,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -63,15 +64,22 @@ pub fn state(app: &App) -> StateDump {
 pub fn preview_lines(app: &App, width: usize, height: usize) -> ViewportDump {
     let inner_width = width.saturating_sub(2).max(1);
     let inner_height = height.saturating_sub(2).max(1);
-    let mut rows = Vec::new();
-    for line in app.content.split('\n').skip(app.preview_scroll) {
-        let rendered = preview_plain_line(line);
-        rows.extend(wrap_line(&rendered, inner_width));
-        if rows.len() >= inner_height {
-            break;
-        }
-    }
-    rows.truncate(inner_height);
+    let theme = Theme::slate();
+    let rows = render_preview_document(
+        &app.content,
+        app.preview_scroll,
+        inner_height,
+        inner_width,
+        &theme,
+    )
+    .into_iter()
+    .map(|line| {
+        line.spans
+            .into_iter()
+            .map(|span| span.content.to_string())
+            .collect::<String>()
+    })
+    .collect();
     ViewportDump {
         width,
         height,
@@ -235,25 +243,6 @@ fn help_lines() -> Vec<String> {
     .into_iter()
     .map(str::to_string)
     .collect()
-}
-
-fn preview_plain_line(raw: &str) -> String {
-    match classify_document(raw).into_iter().next().map(|l| l.kind) {
-        Some(LineKind::Heading(level)) => format!(
-            "{} {}",
-            "#".repeat(level as usize),
-            raw.trim_start_matches('#').trim()
-        ),
-        Some(LineKind::Blockquote) => {
-            format!("▌ {}", raw.trim_start().trim_start_matches('>').trim())
-        }
-        Some(LineKind::HorizontalRule) => "─".repeat(12),
-        _ => strip_inline_markers(raw),
-    }
-}
-
-fn strip_inline_markers(raw: &str) -> String {
-    raw.replace("**", "").replace('`', "")
 }
 
 fn mark_cursor(raw: &str, col: usize) -> String {
