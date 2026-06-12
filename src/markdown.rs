@@ -14,6 +14,7 @@ pub enum LineKind {
     UnorderedList,
     OrderedList,
     CodeBlock,
+    Table,
     HorizontalRule,
     Empty,
     Text,
@@ -114,6 +115,14 @@ pub fn classify_document(content: &str) -> Vec<ClassifiedLine> {
             if is_hr(trimmed) {
                 return ClassifiedLine {
                     kind: LineKind::HorizontalRule,
+                    text: line.to_string(),
+                    level: None,
+                    language: None,
+                };
+            }
+            if is_table_row(line) || is_table_separator(line) {
+                return ClassifiedLine {
+                    kind: LineKind::Table,
                     text: line.to_string(),
                     level: None,
                     language: None,
@@ -220,6 +229,143 @@ fn ordered(line: &str) -> bool {
         && s.as_bytes().get(dot + 1) == Some(&b' ')
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ListInfo<'a> {
+    indent: usize,
+    level: usize,
+    marker: &'a str,
+    content: &'a str,
+    ordered: bool,
+}
+
+fn list_info(line: &str) -> Option<ListInfo<'_>> {
+    let indent = line.chars().take_while(|c| c.is_whitespace()).count();
+    let level = indent / 2;
+    let s = line.trim_start();
+    if matches!(s.as_bytes(), [b'-' | b'*' | b'+', b' ', ..]) {
+        return Some(ListInfo {
+            indent,
+            level,
+            marker: &s[..1],
+            content: &s[2..],
+            ordered: false,
+        });
+    }
+    let dot = s.find('.')?;
+    if dot > 0
+        && s[..dot].chars().all(|c| c.is_ascii_digit())
+        && s.as_bytes().get(dot + 1) == Some(&b' ')
+    {
+        return Some(ListInfo {
+            indent,
+            level,
+            marker: &s[..dot + 1],
+            content: &s[dot + 2..],
+            ordered: true,
+        });
+    }
+    None
+}
+
+fn is_table_row(line: &str) -> bool {
+    let trimmed = line.trim();
+    trimmed.contains('|') && trimmed.matches('|').count() >= 2 && !is_table_separator(line)
+}
+
+fn is_table_separator(line: &str) -> bool {
+    let trimmed = line.trim().trim_matches('|').trim();
+    !trimmed.is_empty()
+        && trimmed.split('|').all(|cell| {
+            let cell = cell.trim();
+            cell.len() >= 3 && cell.chars().all(|c| matches!(c, '-' | ':' | ' '))
+        })
+}
+
+fn starts_table_block(lines: &[&str], idx: usize) -> bool {
+    idx + 1 < lines.len() && is_table_row(lines[idx]) && is_table_separator(lines[idx + 1])
+}
+
+fn table_cells(line: &str) -> Vec<String> {
+    line.trim()
+        .trim_matches('|')
+        .split('|')
+        .map(|cell| cell.trim().to_string())
+        .collect()
+}
+
+fn render_table_block(lines: &[&str], width: usize, theme: &Theme) -> Vec<Line<'static>> {
+    let rows: Vec<Vec<String>> = lines
+        .iter()
+        .filter(|line| !is_table_separator(line))
+        .map(|line| table_cells(line))
+        .collect();
+    if rows.is_empty() {
+        return Vec::new();
+    }
+    let cols = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let mut widths = vec![3usize; cols];
+    for row in &rows {
+        for (idx, cell) in row.iter().enumerate() {
+            widths[idx] = widths[idx]
+                .max(cell.width())
+                .min(width.saturating_div(cols.max(1)).max(6));
+        }
+    }
+    let border_style = Style::default().fg(theme.border_strong);
+    let header_style = Style::default()
+        .fg(theme.heading2)
+        .add_modifier(Modifier::BOLD);
+    let text_style = Style::default().fg(theme.text);
+    let mut out = Vec::new();
+    out.push(table_rule('╭', '┬', '╮', &widths, border_style));
+    for (row_idx, row) in rows.iter().enumerate() {
+        let style = if row_idx == 0 {
+            header_style
+        } else {
+            text_style
+        };
+        out.push(table_row(row, &widths, style, border_style));
+        if row_idx == 0 && rows.len() > 1 {
+            out.push(table_rule('├', '┼', '┤', &widths, border_style));
+        }
+    }
+    out.push(table_rule('╰', '┴', '╯', &widths, border_style));
+    out
+}
+
+fn table_rule(
+    left: char,
+    join: char,
+    right: char,
+    widths: &[usize],
+    style: Style,
+) -> Line<'static> {
+    let mut s = String::new();
+    s.push(left);
+    for (idx, width) in widths.iter().enumerate() {
+        if idx > 0 {
+            s.push(join);
+        }
+        s.push_str(&"─".repeat(*width + 2));
+    }
+    s.push(right);
+    Line::from(Span::styled(s, style))
+}
+
+fn table_row(row: &[String], widths: &[usize], style: Style, border_style: Style) -> Line<'static> {
+    let mut spans = Vec::new();
+    spans.push(Span::styled("│", border_style));
+    for (idx, width) in widths.iter().enumerate() {
+        let cell = row.get(idx).map(String::as_str).unwrap_or("");
+        let pad = width.saturating_sub(cell.width());
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(cell.to_string(), style));
+        spans.push(Span::raw(" ".repeat(pad + 1)));
+        spans.push(Span::styled("│", border_style));
+    }
+    Line::from(spans)
+}
+
 pub fn render_preview_document(
     content: &str,
     scroll: usize,
@@ -229,7 +375,21 @@ pub fn render_preview_document(
 ) -> Vec<Line<'static>> {
     let mut in_code = false;
     let mut rendered = Vec::new();
-    for raw in content.split('\n') {
+    let raw_lines: Vec<&str> = content.split('\n').collect();
+    let mut idx = 0;
+    while idx < raw_lines.len() {
+        let raw = raw_lines[idx];
+        if !in_code && starts_table_block(&raw_lines, idx) {
+            let start = idx;
+            idx += 1;
+            while idx < raw_lines.len()
+                && (is_table_row(raw_lines[idx]) || is_table_separator(raw_lines[idx]))
+            {
+                idx += 1;
+            }
+            rendered.extend(render_table_block(&raw_lines[start..idx], width, theme));
+            continue;
+        }
         if let Some((level, _)) = heading(raw) {
             if level <= 2
                 && rendered
@@ -298,6 +458,7 @@ pub fn render_preview_document(
         } else {
             rendered.push(render_preview_line(raw, theme));
         }
+        idx += 1;
     }
     rendered
         .into_iter()
@@ -360,21 +521,20 @@ pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
             Style::default().fg(theme.hr),
         ));
     }
-    if unordered(raw) || ordered(raw) {
-        let prefix_len = raw.find(' ').map(|i| i + 1).unwrap_or(0);
-        let (prefix, rest) = raw.split_at(prefix_len.min(raw.len()));
-        let indent = prefix
-            .chars()
-            .take_while(|c| c.is_whitespace())
-            .collect::<String>();
-        let marker = if unordered(raw) {
-            format!("{indent}• ")
+    if let Some(list) = list_info(raw) {
+        let marker = if list.ordered {
+            format!("{}{} ", " ".repeat(list.indent), list.marker)
         } else {
-            prefix.to_string()
+            let glyph = match list.level % 3 {
+                0 => "•",
+                1 => "◦",
+                _ => "▪",
+            };
+            format!("{}{glyph} ", " ".repeat(list.indent))
         };
         let mut spans = vec![Span::styled(marker, Style::default().fg(theme.warn))];
         spans.extend(render_inline_spans(
-            rest,
+            list.content,
             theme,
             Style::default().fg(theme.text),
         ));
@@ -467,7 +627,11 @@ fn continuation_prefix(plain: &str) -> String {
     if trimmed.starts_with('▌') || trimmed.starts_with('▸') || trimmed.starts_with('›') {
         return " ".repeat(leading + 2);
     }
-    if trimmed.starts_with('•') || matches!(trimmed.as_bytes(), [b'-' | b'*' | b'+', b' ', ..]) {
+    if trimmed.starts_with('•')
+        || trimmed.starts_with('◦')
+        || trimmed.starts_with('▪')
+        || matches!(trimmed.as_bytes(), [b'-' | b'*' | b'+', b' ', ..])
+    {
         return " ".repeat(leading + 2);
     }
     if let Some(dot) = trimmed.find(". ") {
@@ -712,6 +876,33 @@ mod tests {
         assert!(plain.iter().any(|line| line.contains("• item")));
         assert!(plain.iter().filter(|line| line.is_empty()).count() >= 2);
         assert!(!plain.iter().any(|line| line.starts_with("# Title")));
+    }
+
+    #[test]
+    fn renders_nested_lists_with_depth_markers() {
+        let theme = Theme::slate();
+        let rows = render_preview_document("- top\n  - nested\n    - deep", 0, 10, 40, &theme);
+        let plain: Vec<String> = rows.into_iter().map(|line| plain_line(&line)).collect();
+        assert!(plain.iter().any(|line| line.contains("• top")));
+        assert!(plain.iter().any(|line| line.contains("  ◦ nested")));
+        assert!(plain.iter().any(|line| line.contains("    ▪ deep")));
+    }
+
+    #[test]
+    fn renders_pipe_tables_as_boxed_preview_rows() {
+        let theme = Theme::slate();
+        let rows = render_preview_document(
+            "| Feature | Status |\n| --- | --- |\n| Tables | done |",
+            0,
+            10,
+            80,
+            &theme,
+        );
+        let plain: Vec<String> = rows.into_iter().map(|line| plain_line(&line)).collect();
+        assert!(plain.iter().any(|line| line.starts_with("╭")));
+        assert!(plain.iter().any(|line| line.contains("Feature")));
+        assert!(plain.iter().any(|line| line.contains("Tables")));
+        assert!(plain.iter().any(|line| line.starts_with("╰")));
     }
 
     #[test]
