@@ -467,12 +467,7 @@ fn handle_files_key(app: &mut App, key: KeyEvent) -> Result<()> {
             app.selected_file = (app.selected_file + 1).min(len - 1)
         }
         KeyCode::Enter | KeyCode::Right => app.open_selected_file()?,
-        KeyCode::Left => {
-            if let Some(parent) = app.file_browser_cwd.parent() {
-                app.file_browser_cwd = parent.to_path_buf();
-                app.selected_file = 0;
-            }
-        }
+        KeyCode::Left => app.file_browser_parent(),
         KeyCode::Esc => app.focus = FocusPane::Editor,
         _ => {}
     }

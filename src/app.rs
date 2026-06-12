@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     ops::Range,
     path::{Path, PathBuf},
@@ -93,6 +94,7 @@ pub struct App {
     pub should_quit: bool,
     pub file_browser_cwd: PathBuf,
     pub selected_file: usize,
+    pub dir_selections: HashMap<PathBuf, usize>,
     pub selected_outline: usize,
     pub undo_stack: Vec<EditSnapshot>,
     pub redo_stack: Vec<EditSnapshot>,
@@ -158,6 +160,7 @@ impl App {
             should_quit: false,
             file_browser_cwd: cwd,
             selected_file: 0,
+            dir_selections: HashMap::new(),
             selected_outline: 0,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -617,12 +620,31 @@ impl App {
             return Ok(());
         };
         if entry.is_dir {
-            self.file_browser_cwd = entry.path;
-            self.selected_file = 0;
+            self.change_file_browser_dir(entry.path);
         } else {
             self.open_file(&entry.path)?;
         }
         Ok(())
+    }
+
+    pub fn file_browser_parent(&mut self) {
+        if let Some(parent) = self.file_browser_cwd.parent() {
+            self.change_file_browser_dir(parent.to_path_buf());
+        }
+    }
+
+    fn change_file_browser_dir(&mut self, path: PathBuf) {
+        self.dir_selections
+            .insert(self.file_browser_cwd.clone(), self.selected_file);
+        self.file_browser_cwd = path;
+        let max = self.file_entries().len().saturating_sub(1);
+        self.selected_file = self
+            .dir_selections
+            .get(&self.file_browser_cwd)
+            .copied()
+            .unwrap_or(0)
+            .min(max);
+        self.status = format!("Files: {}", self.file_browser_cwd.display());
     }
 }
 
@@ -758,5 +780,27 @@ mod tests {
         assert_eq!(app.preview_scroll, 2);
         app.preview_home();
         assert_eq!(app.preview_scroll, 0);
+    }
+
+    #[test]
+    fn file_browser_restores_selection_per_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "md-editor-rust-file-selection-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("a_dir")).unwrap();
+        fs::create_dir_all(root.join("b_dir")).unwrap();
+        let mut app = App::new(None).unwrap();
+        app.file_browser_cwd = root.clone();
+        let entries = app.file_entries();
+        let b_index = entries.iter().position(|e| e.name == "b_dir/").unwrap();
+        app.selected_file = b_index;
+        app.open_selected_file().unwrap();
+        assert_eq!(app.file_browser_cwd, root.join("b_dir"));
+        app.file_browser_parent();
+        assert_eq!(app.file_browser_cwd, root);
+        assert_eq!(app.selected_file, b_index);
+        let _ = fs::remove_dir_all(app.file_browser_cwd);
     }
 }
