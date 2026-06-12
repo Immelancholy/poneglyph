@@ -515,11 +515,11 @@ impl App {
 
     pub fn apply_selected_theme(&mut self) {
         let options = theme_options();
-        let Some(name) = options.get(self.theme_picker_index).copied() else {
+        let Some(name) = options.get(self.theme_picker_index).cloned() else {
             return;
         };
-        self.theme_name = name.to_string();
-        self.theme = Theme::named(name);
+        self.theme_name = name.clone();
+        self.theme = Theme::named(&name);
         self.theme_picker_mode = false;
         self.status = format!("Theme -> {name}");
     }
@@ -571,8 +571,37 @@ fn previous_char_boundary(s: &str, byte: usize) -> usize {
     s[..byte].char_indices().last().map(|(i, _)| i).unwrap_or(0)
 }
 
-pub fn theme_options() -> Vec<&'static str> {
-    vec!["ember", "slate"]
+pub fn theme_options() -> Vec<String> {
+    let mut names = std::collections::BTreeSet::new();
+    names.insert("ember".to_string());
+    names.insert("slate".to_string());
+    for dir in theme_dirs() {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("toml") {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if stem != "config" {
+                            names.insert(stem.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    names.into_iter().collect()
+}
+
+pub fn theme_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        dirs.push(cwd.join("themes"));
+        dirs.push(cwd.join("../md-editor/themes"));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(PathBuf::from(home).join(".config/md-editor/themes"));
+    }
+    dirs
 }
 
 fn default_content() -> String {

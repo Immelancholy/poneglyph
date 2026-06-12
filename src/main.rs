@@ -505,12 +505,12 @@ mod input_tests {
     }
 
     #[test]
-    fn view_mode_theme_picker_applies_ember() {
+    fn view_mode_theme_picker_applies_selected_theme() {
         let mut app = App::new(None).unwrap();
         replay(&mut app, &["ctrl+x", "v", "t", "up", "enter"]);
-        assert_eq!(app.theme_name, "ember");
+        assert_ne!(app.theme_name, "slate");
         assert!(!app.theme_picker_mode);
-        assert_eq!(app.status, "Theme -> ember");
+        assert!(app.status.starts_with("Theme -> "));
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use std::{fs, path::PathBuf};
+
 use ratatui::style::{Color, Modifier, Style};
 use serde::Serialize;
 
@@ -120,9 +122,86 @@ pub struct Theme {
 
 impl Theme {
     pub fn named(name: &str) -> Self {
+        if let Some(theme) = Self::from_bundled_toml(name) {
+            return theme;
+        }
         match name {
             "ember" => Self::ember(),
             _ => Self::slate(),
+        }
+    }
+
+    pub fn from_bundled_toml(name: &str) -> Option<Self> {
+        for dir in theme_dirs() {
+            let path = dir.join(format!("{name}.toml"));
+            if let Ok(raw) = fs::read_to_string(&path) {
+                return Some(Self::from_theme_toml(&raw));
+            }
+        }
+        None
+    }
+
+    pub fn from_theme_toml(raw: &str) -> Self {
+        let mut theme = Self::slate();
+        let mut section = String::new();
+        for line in raw.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if line.starts_with('[') && line.ends_with(']') {
+                section = line.trim_matches(&['[', ']'][..]).to_string();
+                continue;
+            }
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+            let key = key.trim();
+            let value = value.trim().trim_matches('"');
+            let Some(color) = parse_hex_color(value) else {
+                continue;
+            };
+            theme.apply_token(&section, key, color);
+        }
+        theme
+    }
+
+    fn apply_token(&mut self, section: &str, key: &str, color: Color) {
+        match (section, key) {
+            ("slate", "bg0") => self.bg = color,
+            ("slate", "bg2") => self.bg2 = color,
+            ("slate", "panel") => self.panel = color,
+            ("slate", "panelElevated") => self.panel_elevated = color,
+            ("slate", "borderSoft") => self.border = color,
+            ("slate", "borderStrong") => self.border_strong = color,
+            ("slate", "text") => self.text = color,
+            ("slate", "textMuted") => self.text_muted = color,
+            ("semantic", "success" | "modeEdit") => self.success = color,
+            ("semantic", "warn" | "modePreview") => self.warn = color,
+            ("semantic", "error") => self.error = color,
+            ("semantic", "info" | "modeFiles") => self.info = color,
+            ("semantic", "accent" | "modeLog" | "modeLeader") => self.accent = color,
+            ("syntax", "heading1") => self.heading1 = color,
+            ("syntax", "heading2") => self.heading2 = color,
+            ("syntax", "heading3") => self.heading3 = color,
+            ("syntax", "heading4") => self.heading4 = color,
+            ("syntax", "heading5") => self.heading5 = color,
+            ("syntax", "heading6") => self.heading6 = color,
+            ("syntax", "headingMarker" | "marker" | "codeBlockBorder") => {
+                self.heading_marker = color
+            }
+            ("syntax", "bold") => self.bold = color,
+            ("syntax", "italic") => self.italic = color,
+            ("syntax", "boldItalic") => self.bold_italic = color,
+            ("syntax", "code" | "codeBlockLang") => self.code = color,
+            ("syntax", "codeBg") => self.code_bg = color,
+            ("syntax", "strikethrough") => self.strikethrough = color,
+            ("syntax", "blockquote") => self.quote = color,
+            ("syntax", "blockquoteMarker") => self.quote_marker = color,
+            ("syntax", "link" | "linkText") => self.link = color,
+            ("syntax", "image") => self.image = color,
+            ("syntax", "horizontalRule") => self.hr = color,
+            _ => {}
         }
     }
 
@@ -276,6 +355,29 @@ impl Theme {
     }
 }
 
+fn theme_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        dirs.push(cwd.join("themes"));
+        dirs.push(cwd.join("../md-editor/themes"));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(PathBuf::from(home).join(".config/md-editor/themes"));
+    }
+    dirs
+}
+
+fn parse_hex_color(raw: &str) -> Option<Color> {
+    let hex = raw.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some(Color::Rgb(r, g, b))
+}
+
 fn color_hex(color: Color) -> String {
     match color {
         Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
@@ -286,6 +388,14 @@ fn color_hex(color: Color) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_bundled_theme_toml_tokens() {
+        let raw = "[slate]\nbg0 = \"#1a1b26\"\n[syntax]\nheading1 = \"#bb9af7\"\n";
+        let theme = Theme::from_theme_toml(raw);
+        assert_eq!(color_hex(theme.bg), "#1a1b26");
+        assert_eq!(color_hex(theme.heading1), "#bb9af7");
+    }
 
     #[test]
     fn slate_tokens_match_bun_default_values() {
