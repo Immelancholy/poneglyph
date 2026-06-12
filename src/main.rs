@@ -231,6 +231,9 @@ fn parse_script_key(raw: &str) -> Result<KeyEvent> {
         "home" => KeyEvent::new(KeyCode::Home, KeyModifiers::NONE),
         "end" => KeyEvent::new(KeyCode::End, KeyModifiers::NONE),
         "ctrl+x" | "c-x" | "^x" => KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
+        "ctrl+e" | "c-e" | "^e" => KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+        "ctrl+v" | "c-v" | "^v" => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL),
+        "ctrl+f" | "c-f" | "^f" => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL),
         "ctrl+q" | "c-q" | "^q" => KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL),
         "ctrl+s" | "c-s" | "^s" => KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL),
         "ctrl+z" | "c-z" | "^z" => KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL),
@@ -250,6 +253,23 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<()> {
         app.should_quit = true;
         return Ok(());
     }
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        match key.code {
+            KeyCode::Char('e') => {
+                app.enter_leader_mode(LeaderMode::Edit);
+                return Ok(());
+            }
+            KeyCode::Char('v') => {
+                app.enter_leader_mode(LeaderMode::View);
+                return Ok(());
+            }
+            KeyCode::Char('f') => {
+                app.enter_leader_mode(LeaderMode::Files);
+                return Ok(());
+            }
+            _ => {}
+        }
+    }
     if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('s')) {
         app.save()?;
         return Ok(());
@@ -264,7 +284,7 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<()> {
     }
     if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('x')) {
         app.leader = true;
-        app.status = "Ctrl+X: e edit, p preview, f files, o outline, b/r sidebar, u undo, y redo, s save, q quit".into();
+        app.status = "Legacy Ctrl+X: e edit, v view, f files, o outline, t themes, c cursor".into();
         return Ok(());
     }
     if app.leader {
@@ -360,7 +380,7 @@ fn handle_active_leader_key(app: &mut App, key: KeyEvent) -> Result<()> {
 fn handle_theme_picker_key(app: &mut App, key: KeyEvent) -> Result<()> {
     match key.code {
         KeyCode::Esc | KeyCode::Char('q') => app.cancel_theme_picker(),
-        KeyCode::Enter => app.apply_selected_theme(),
+        KeyCode::Enter => app.apply_selected_theme_preview(),
         KeyCode::Up | KeyCode::Char('k') => app.move_theme_selection(-1),
         KeyCode::Down | KeyCode::Char('j') => app.move_theme_selection(1),
         _ => {}
@@ -465,7 +485,7 @@ mod input_tests {
     fn leader_edit_type_escape_returns_to_preview_without_leaking_command_chars() {
         let mut app = App::new(None).unwrap();
         app.content = "abc".into();
-        replay(&mut app, &["ctrl+x", "e", "H", "i", "esc"]);
+        replay(&mut app, &["ctrl+e", "H", "i", "esc"]);
         assert_eq!(app.mode, ViewMode::Preview);
         assert_eq!(app.content, "Hiabc");
         assert!(!app.leader);
@@ -479,7 +499,7 @@ mod input_tests {
         assert!(preview.should_quit);
 
         let mut edit = App::new(None).unwrap();
-        replay(&mut edit, &["ctrl+x", "e", "ctrl+x", "q"]);
+        replay(&mut edit, &["ctrl+e", "ctrl+q"]);
         assert!(edit.should_quit);
     }
 
@@ -487,7 +507,7 @@ mod input_tests {
     fn global_undo_redo_work_while_in_preview() {
         let mut app = App::new(None).unwrap();
         app.content = "abc".into();
-        replay(&mut app, &["ctrl+x", "e", "d", "esc", "ctrl+z"]);
+        replay(&mut app, &["ctrl+e", "d", "esc", "ctrl+z"]);
         assert_eq!(app.content, "abc");
         replay(&mut app, &["ctrl+y"]);
         assert_eq!(app.content, "dabc");
@@ -496,7 +516,7 @@ mod input_tests {
     #[test]
     fn files_focus_escape_returns_to_editor_focus() {
         let mut app = App::new(None).unwrap();
-        replay(&mut app, &["ctrl+x", "f"]);
+        replay(&mut app, &["ctrl+f"]);
         assert_eq!(app.focus, FocusPane::Files);
         assert_eq!(app.active_leader_mode, Some(LeaderMode::Files));
         replay(&mut app, &["esc"]);
@@ -507,17 +527,17 @@ mod input_tests {
     #[test]
     fn view_mode_theme_picker_applies_selected_theme() {
         let mut app = App::new(None).unwrap();
-        replay(&mut app, &["ctrl+x", "v", "t", "up", "enter"]);
+        replay(&mut app, &["ctrl+v", "t", "up", "enter"]);
         assert_ne!(app.theme_name, "slate");
-        assert!(!app.theme_picker_mode);
-        assert!(app.status.starts_with("Theme -> "));
+        assert!(app.theme_picker_mode);
+        assert!(app.status.starts_with("Theme preview -> "));
     }
 
     #[test]
     fn view_mode_cursor_command_cycles_cursor_style() {
         let mut app = App::new(None).unwrap();
         assert_eq!(app.cursor_style, crate::app::CursorStyle::Block);
-        replay(&mut app, &["ctrl+x", "v", "c"]);
+        replay(&mut app, &["ctrl+v", "c"]);
         assert_eq!(app.cursor_style, crate::app::CursorStyle::Bar);
         assert_eq!(app.active_leader_mode, None);
     }
@@ -542,7 +562,7 @@ mod input_tests {
         ));
         std::fs::write(&path, "abc").unwrap();
         let mut app = App::new(Some(path.clone())).unwrap();
-        replay(&mut app, &["ctrl+x", "e", "Z", "ctrl+s"]);
+        replay(&mut app, &["ctrl+e", "Z", "ctrl+s"]);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "Zabc");
         assert!(!app.modified);
         let _ = std::fs::remove_file(path);
@@ -570,7 +590,7 @@ mod input_tests {
             .map(|i| format!("line {i}"))
             .collect::<Vec<_>>()
             .join("\n");
-        replay(&mut app, &["ctrl+x", "e", "pagedown", "end"]);
+        replay(&mut app, &["ctrl+e", "pagedown", "end"]);
         assert_eq!(app.cursor_line, 10);
         assert_eq!(app.cursor_col, "line 10".len());
         assert!(app.scroll > 0);

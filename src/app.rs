@@ -120,7 +120,7 @@ impl App {
             theme_name: "slate".into(),
             theme: Theme::slate(),
             cursor_style: CursorStyle::Block,
-            status: "Markdown viewer: Ctrl+X then e/v/f for modes".into(),
+            status: "Markdown viewer: Ctrl+E edit, Ctrl+V view, Ctrl+F files".into(),
             should_quit: false,
             file_browser_cwd: cwd,
             selected_file: 0,
@@ -513,15 +513,15 @@ impl App {
         self.theme_picker_index = next as usize;
     }
 
-    pub fn apply_selected_theme(&mut self) {
+    pub fn apply_selected_theme_preview(&mut self) {
         let options = theme_options();
         let Some(name) = options.get(self.theme_picker_index).cloned() else {
             return;
         };
         self.theme_name = name.clone();
         self.theme = Theme::named(&name);
-        self.theme_picker_mode = false;
-        self.status = format!("Theme -> {name}");
+        self.theme_picker_mode = true;
+        self.status = format!("Theme preview -> {name}");
     }
 
     pub fn cycle_cursor_style(&mut self) {

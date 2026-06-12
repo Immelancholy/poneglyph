@@ -176,18 +176,16 @@ fn header_action_line<'a>(app: &App, theme: &Theme) -> Line<'a> {
             Span::raw(" Open  "),
             Span::styled(" Esc ", theme.badge(theme.text_muted)),
             Span::raw(" Editor  "),
-            Span::styled(" ^X ", theme.badge(theme.accent)),
+            Span::styled(" ^E/^V/^F ", theme.badge(theme.accent)),
             Span::raw(" Modes"),
         ]
     } else {
         vec![
-            Span::styled(" ^X ", theme.badge(theme.accent)),
-            Span::raw(" Modes  "),
-            Span::styled(" ^X e ", theme.badge(theme.success)),
+            Span::styled(" ^E ", theme.badge(theme.success)),
             Span::raw(" Edit  "),
-            Span::styled(" ^X v ", theme.badge(theme.warn)),
+            Span::styled(" ^V ", theme.badge(theme.warn)),
             Span::raw(" View  "),
-            Span::styled(" ^X f ", theme.badge(theme.info)),
+            Span::styled(" ^F ", theme.badge(theme.info)),
             Span::raw(" Files"),
         ]
     };
@@ -605,7 +603,7 @@ fn draw_help(frame: &mut Frame<'_>, theme: &Theme, area: Rect) {
         )),
         Line::from(""),
         Line::from("Ctrl+X e/p  Edit / preview"),
-        Line::from("Ctrl+X e/v/f  Enter edit/view/files modes"),
+        Line::from("Ctrl+E/V/F  Enter edit/view/files modes"),
         Line::from("View: o outline, r collapse, t themes, c cursor"),
         Line::from("Edit: s save, w wrap"),
         Line::from("Ctrl+Z/Y    Undo / redo"),
