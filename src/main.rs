@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod debug_emit;
 mod markdown;
 mod theme;
@@ -16,6 +17,7 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, Terminal};
 
 use app::{App, FocusPane, LeaderMode, ViewMode};
+use config::AppConfig;
 use theme::Theme;
 
 #[derive(Parser)]
@@ -73,6 +75,8 @@ enum Command {
     },
     /// Print Rust theme tokens in the Bun md-editor token schema
     ThemeTokens,
+    /// Print effective config preferences JSON
+    Config,
     /// Replay comma-separated key names and print final state JSON
     StateAfterKeys { file: PathBuf, keys: String },
 }
@@ -158,6 +162,10 @@ fn main() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&Theme::slate().tokens())?
             );
+            return Ok(());
+        }
+        Some(Command::Config) => {
+            println!("{}", serde_json::to_string_pretty(&AppConfig::load())?);
             return Ok(());
         }
         Some(Command::StateAfterKeys { file, keys }) => {

@@ -10,6 +10,7 @@ use unicode_width::UnicodeWidthStr;
 use walkdir::WalkDir;
 
 use crate::{
+    config::AppConfig,
     markdown::{outline, OutlineItem},
     theme::Theme,
 };
@@ -97,9 +98,40 @@ pub struct App {
     pub redo_stack: Vec<EditSnapshot>,
 }
 
+impl CursorStyle {
+    pub fn as_config_str(&self) -> &'static str {
+        match self {
+            CursorStyle::Brackets => "brackets",
+            CursorStyle::Block => "block",
+            CursorStyle::Bar => "bar",
+            CursorStyle::Underline => "underline",
+            CursorStyle::Box => "box",
+        }
+    }
+
+    pub fn from_config_str(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "brackets" => Some(CursorStyle::Brackets),
+            "block" => Some(CursorStyle::Block),
+            "bar" => Some(CursorStyle::Bar),
+            "underline" => Some(CursorStyle::Underline),
+            "box" => Some(CursorStyle::Box),
+            _ => None,
+        }
+    }
+}
+
 impl App {
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         let cwd = std::env::current_dir()?;
+        let config = if cfg!(test) && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none() {
+            AppConfig::default()
+        } else {
+            AppConfig::load()
+        };
+        let theme_name = config.theme.clone().unwrap_or_else(|| "slate".into());
+        let cursor_style = config.cursor_style.clone().unwrap_or(CursorStyle::Block);
+        let boxed_chrome = config.boxed_chrome.unwrap_or(true);
         let mut app = Self {
             content: default_content(),
             file_path: None,
@@ -118,10 +150,10 @@ impl App {
             active_leader_mode: None,
             theme_picker_mode: false,
             theme_picker_index: 1,
-            theme_name: "slate".into(),
-            theme: Theme::slate(),
-            cursor_style: CursorStyle::Block,
-            boxed_chrome: true,
+            theme_name: theme_name.clone(),
+            theme: Theme::named(&theme_name),
+            cursor_style,
+            boxed_chrome,
             status: "Markdown viewer: Ctrl+E edit, Ctrl+V view, Ctrl+F files".into(),
             should_quit: false,
             file_browser_cwd: cwd,
@@ -524,11 +556,13 @@ impl App {
         self.theme_name = name.clone();
         self.theme = Theme::named(&name);
         self.theme_picker_mode = true;
+        self.persist_preferences();
         self.status = format!("Theme preview -> {name}");
     }
 
     pub fn toggle_boxed_chrome(&mut self) {
         self.boxed_chrome = !self.boxed_chrome;
+        self.persist_preferences();
         self.status = if self.boxed_chrome {
             "Chrome: boxed panels"
         } else {
@@ -545,7 +579,22 @@ impl App {
             CursorStyle::Underline => CursorStyle::Box,
             CursorStyle::Box => CursorStyle::Brackets,
         };
+        self.persist_preferences();
         self.status = format!("Cursor: {:?}", self.cursor_style);
+    }
+
+    fn persist_preferences(&mut self) {
+        if cfg!(test) && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none() {
+            return;
+        }
+        let cfg = AppConfig {
+            theme: Some(self.theme_name.clone()),
+            cursor_style: Some(self.cursor_style.clone()),
+            boxed_chrome: Some(self.boxed_chrome),
+        };
+        if let Err(err) = cfg.save() {
+            self.status = format!("Config save failed: {err}");
+        }
     }
 
     pub fn jump_to_selected_outline(&mut self) {
