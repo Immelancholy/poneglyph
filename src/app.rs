@@ -1,5 +1,6 @@
 use std::{
     fs,
+    ops::Range,
     path::{Path, PathBuf},
 };
 
@@ -449,6 +450,18 @@ fn default_content() -> String {
     "# Welcome to md-editor-rust\n\nA Rust/Ratatui parity port of md-editor.\n\n## Getting Started\n\n- Starts in preview mode\n- Ctrl+X then e to edit\n- Ctrl+X then p for preview\n- Ctrl+X then f for files\n- Ctrl+X then h for help".into()
 }
 
+pub fn selected_window(total: usize, selected: usize, height: usize) -> Range<usize> {
+    if total == 0 || height == 0 {
+        return 0..0;
+    }
+    let visible = height.min(total);
+    let selected = selected.min(total - 1);
+    let half = visible / 2;
+    let mut start = selected.saturating_sub(half);
+    start = start.min(total.saturating_sub(visible));
+    start..start + visible
+}
+
 #[allow(dead_code)]
 pub fn discover_markdown_files(root: &Path, limit: usize) -> Vec<PathBuf> {
     WalkDir::new(root)
@@ -502,5 +515,14 @@ mod tests {
         assert_eq!(app.content, "abc");
         app.redo();
         assert_eq!(app.content, "abcd");
+    }
+
+    #[test]
+    fn selected_window_keeps_selection_visible_and_centered_when_possible() {
+        assert_eq!(selected_window(0, 0, 10), 0..0);
+        assert_eq!(selected_window(20, 0, 5), 0..5);
+        assert_eq!(selected_window(20, 10, 5), 8..13);
+        assert_eq!(selected_window(20, 19, 5), 15..20);
+        assert_eq!(selected_window(3, 2, 10), 0..3);
     }
 }

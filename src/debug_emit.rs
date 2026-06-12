@@ -2,7 +2,7 @@ use serde::Serialize;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    app::{App, FocusPane, ViewMode},
+    app::{selected_window, App, FocusPane, ViewMode},
     markdown::{classify_document, LineKind},
 };
 
@@ -125,16 +125,29 @@ pub fn sidebar_lines(app: &App, width: usize, height: usize) -> ViewportDump {
     } else if app.show_help {
         help_lines()
     } else if app.sidebar_files {
-        app.file_entries()
-            .into_iter()
-            .enumerate()
-            .map(|(i, entry)| {
-                let marker = if i == app.selected_file { "> " } else { "  " };
-                format!("{marker}{}", entry.name)
-            })
-            .collect()
+        let entries = app.file_entries();
+        let window = selected_window(entries.len(), app.selected_file, inner_height);
+        let mut rows = Vec::new();
+        if window.start > 0 {
+            rows.push(format!("  ↑ {} more", window.start));
+        }
+        rows.extend(
+            entries
+                .iter()
+                .enumerate()
+                .skip(window.start)
+                .take(window.len())
+                .map(|(i, entry)| {
+                    let marker = if i == app.selected_file { "> " } else { "  " };
+                    format!("{marker}{}", entry.name)
+                }),
+        );
+        if window.end < entries.len() {
+            rows.push(format!("  ↓ {} more", entries.len() - window.end));
+        }
+        rows
     } else {
-        outline_sidebar_lines(app)
+        outline_sidebar_lines(app, inner_height)
     };
     lines = lines
         .into_iter()
@@ -148,7 +161,7 @@ pub fn sidebar_lines(app: &App, width: usize, height: usize) -> ViewportDump {
     }
 }
 
-fn outline_sidebar_lines(app: &App) -> Vec<String> {
+fn outline_sidebar_lines(app: &App, height: usize) -> Vec<String> {
     let stats = app.stats();
     let mut lines = vec![
         "FILE INFO".to_string(),
@@ -170,7 +183,21 @@ fn outline_sidebar_lines(app: &App) -> Vec<String> {
     if outline.is_empty() {
         lines.push("No headings found".to_string());
     } else {
-        for (idx, h) in outline.into_iter().enumerate() {
+        let reserved = lines.len();
+        let window = selected_window(
+            outline.len(),
+            app.selected_outline,
+            height.saturating_sub(reserved),
+        );
+        if window.start > 0 {
+            lines.push(format!("  ↑ {} more", window.start));
+        }
+        for (idx, h) in outline
+            .iter()
+            .enumerate()
+            .skip(window.start)
+            .take(window.len())
+        {
             let marker = if matches!(app.focus, FocusPane::Outline) && idx == app.selected_outline {
                 "> "
             } else {
@@ -181,6 +208,9 @@ fn outline_sidebar_lines(app: &App) -> Vec<String> {
                 "  ".repeat(h.level.saturating_sub(1) as usize),
                 h.text
             ));
+        }
+        if window.end < outline.len() {
+            lines.push(format!("  ↓ {} more", outline.len() - window.end));
         }
     }
     lines

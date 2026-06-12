@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, FocusPane, ViewMode},
+    app::{selected_window, App, FocusPane, ViewMode},
     markdown::{render_editor_line, render_preview_document},
     theme::Theme,
 };
@@ -268,10 +268,19 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     if outline.is_empty() {
         items.push(Line::from(Span::styled("No headings found", theme.dim())));
     } else {
+        let heading_rows = area.height.saturating_sub(10) as usize;
+        let window = selected_window(outline.len(), app.selected_outline, heading_rows);
+        if window.start > 0 {
+            items.push(Line::from(Span::styled(
+                format!("  ↑ {} more", window.start),
+                theme.dim(),
+            )));
+        }
         for (idx, h) in outline
-            .into_iter()
-            .take(area.height.saturating_sub(10) as usize)
+            .iter()
             .enumerate()
+            .skip(window.start)
+            .take(window.len())
         {
             let color = if h.level == 1 {
                 theme.heading1
@@ -299,6 +308,12 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 style,
             )));
         }
+        if window.end < outline.len() {
+            items.push(Line::from(Span::styled(
+                format!("  ↓ {} more", outline.len() - window.end),
+                theme.dim(),
+            )));
+        }
     }
     let p = Paragraph::new(items)
         .block(
@@ -316,36 +331,53 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
 
 fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let entries = app.file_entries();
-    let items: Vec<ListItem> = entries
-        .iter()
-        .enumerate()
-        .take(area.height.saturating_sub(2) as usize)
-        .map(|(i, e)| {
-            let selected = i == app.selected_file;
-            let marker = if selected { "›" } else { " " };
-            let icon = if e.name == "../" {
-                "↰"
-            } else if e.is_dir {
-                "📁"
-            } else {
-                "󰈙"
-            };
-            let style = if selected {
-                Style::default()
-                    .fg(theme.bg)
-                    .bg(theme.accent)
-                    .add_modifier(Modifier::BOLD)
-            } else if e.is_dir {
-                Style::default().fg(theme.info)
-            } else {
-                Style::default().fg(theme.text)
-            };
-            ListItem::new(Line::from(Span::styled(
-                format!("{marker} {icon} {}", e.name),
-                style,
-            )))
-        })
-        .collect();
+    let visible_rows = area.height.saturating_sub(2) as usize;
+    let window = selected_window(entries.len(), app.selected_file, visible_rows);
+    let mut items: Vec<ListItem> = Vec::new();
+    if window.start > 0 {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  ↑ {} more", window.start),
+            theme.dim(),
+        ))));
+    }
+    items.extend(
+        entries
+            .iter()
+            .enumerate()
+            .skip(window.start)
+            .take(window.len())
+            .map(|(i, e)| {
+                let selected = i == app.selected_file;
+                let marker = if selected { "›" } else { " " };
+                let icon = if e.name == "../" {
+                    "↰"
+                } else if e.is_dir {
+                    "📁"
+                } else {
+                    "󰈙"
+                };
+                let style = if selected {
+                    Style::default()
+                        .fg(theme.bg)
+                        .bg(theme.accent)
+                        .add_modifier(Modifier::BOLD)
+                } else if e.is_dir {
+                    Style::default().fg(theme.info)
+                } else {
+                    Style::default().fg(theme.text)
+                };
+                ListItem::new(Line::from(Span::styled(
+                    format!("{marker} {icon} {}", e.name),
+                    style,
+                )))
+            }),
+    );
+    if window.end < entries.len() {
+        items.push(ListItem::new(Line::from(Span::styled(
+            format!("  ↓ {} more", entries.len() - window.end),
+            theme.dim(),
+        ))));
+    }
     let list = List::new(items)
         .block(
             Block::default()
