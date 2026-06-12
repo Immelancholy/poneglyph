@@ -1,4 +1,5 @@
 mod app;
+mod debug_emit;
 mod markdown;
 mod theme;
 mod ui;
@@ -38,6 +39,38 @@ enum Command {
     Stats { file: PathBuf },
     /// Print markdown classification JSON for oracle tests
     Classify { file: PathBuf },
+    /// Print wrapped preview viewport lines JSON for oracle tests
+    PreviewLines {
+        file: PathBuf,
+        #[arg(long, default_value_t = 80)]
+        width: usize,
+        #[arg(long, default_value_t = 24)]
+        height: usize,
+    },
+    /// Print wrapped editor viewport lines JSON for oracle tests
+    EditorLines {
+        file: PathBuf,
+        #[arg(long, default_value_t = 80)]
+        width: usize,
+        #[arg(long, default_value_t = 24)]
+        height: usize,
+    },
+    /// Print sidebar viewport lines JSON for oracle tests
+    SidebarLines {
+        file: PathBuf,
+        #[arg(long, default_value_t = 40)]
+        width: usize,
+        #[arg(long, default_value_t = 24)]
+        height: usize,
+        #[arg(long)]
+        files: bool,
+        #[arg(long = "show-help")]
+        show_help: bool,
+        #[arg(long)]
+        collapsed: bool,
+    },
+    /// Replay comma-separated key names and print final state JSON
+    StateAfterKeys { file: PathBuf, keys: String },
 }
 
 fn main() -> Result<()> {
@@ -62,6 +95,64 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&markdown::classify_document(&content))?
+            );
+            return Ok(());
+        }
+        Some(Command::PreviewLines {
+            file,
+            width,
+            height,
+        }) => {
+            let app = App::new(Some(file))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&debug_emit::preview_lines(&app, width, height))?
+            );
+            return Ok(());
+        }
+        Some(Command::EditorLines {
+            file,
+            width,
+            height,
+        }) => {
+            let mut app = App::new(Some(file))?;
+            app.mode = ViewMode::Edit;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&debug_emit::editor_lines(&app, width, height))?
+            );
+            return Ok(());
+        }
+        Some(Command::SidebarLines {
+            file,
+            width,
+            height,
+            files,
+            show_help,
+            collapsed,
+        }) => {
+            let mut app = App::new(Some(file))?;
+            app.sidebar_files = files;
+            app.show_help = show_help;
+            app.sidebar_collapsed = collapsed;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&debug_emit::sidebar_lines(&app, width, height))?
+            );
+            return Ok(());
+        }
+        Some(Command::StateAfterKeys { file, keys }) => {
+            let mut app = App::new(Some(file))?;
+            for key in keys.split(',').map(str::trim).filter(|k| !k.is_empty()) {
+                let event = parse_script_key(key)?;
+                handle_key(&mut app, event)?;
+                if app.should_quit {
+                    break;
+                }
+            }
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&debug_emit::state(&app))?
             );
             return Ok(());
         }
@@ -107,6 +198,33 @@ fn run_app(
             }
         }
     }
+}
+
+fn parse_script_key(raw: &str) -> Result<KeyEvent> {
+    let lower = raw.to_ascii_lowercase();
+    let key = match lower.as_str() {
+        "esc" | "escape" => KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+        "enter" | "return" => KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        "backspace" | "bs" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
+        "tab" => KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
+        "up" => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+        "down" => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+        "left" => KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
+        "right" => KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
+        "pageup" | "pgup" => KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE),
+        "pagedown" | "pgdn" => KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
+        "ctrl+x" | "c-x" | "^x" => KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
+        "ctrl+q" | "c-q" | "^q" => KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL),
+        "ctrl+s" | "c-s" | "^s" => KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL),
+        "ctrl+z" | "c-z" | "^z" => KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL),
+        "ctrl+y" | "c-y" | "^y" => KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL),
+        _ if raw.chars().count() == 1 => KeyEvent::new(
+            KeyCode::Char(raw.chars().next().unwrap()),
+            KeyModifiers::NONE,
+        ),
+        _ => anyhow::bail!("unknown scripted key: {raw}"),
+    };
+    Ok(key)
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> Result<()> {
