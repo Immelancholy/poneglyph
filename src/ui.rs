@@ -558,18 +558,45 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
 }
 
 fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
+    let options = theme_options();
+    let reserved_rows = if app.boxed_chrome { 8 } else { 9 };
+    let visible_rows = (area.height as usize).saturating_sub(reserved_rows).max(1);
+    let window = selected_window(options.len(), app.theme_picker_index, visible_rows);
     let mut lines = vec![
         Line::from(Span::styled(
             "THEME SELECTOR",
             Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
         )),
+        Line::from(Span::styled(
+            format!(
+                "{} themes · {} selected",
+                options.len(),
+                options
+                    .get(app.theme_picker_index)
+                    .map(String::as_str)
+                    .unwrap_or("none")
+            ),
+            theme.dim(),
+        )),
         Line::from(""),
     ];
-    for (idx, name) in theme_options().into_iter().enumerate() {
+    if window.start > 0 {
+        lines.push(Line::from(Span::styled(
+            format!("  ↑ {} more", window.start),
+            theme.dim(),
+        )));
+    }
+    for (idx, name) in options
+        .iter()
+        .enumerate()
+        .skip(window.start)
+        .take(window.len())
+    {
         let selected = idx == app.theme_picker_index;
-        let current = name == app.theme_name;
+        let current = name == &app.theme_name;
         let marker = if selected { "›" } else { " " };
         let current_marker = if current { " *" } else { "" };
+        let preview_theme = Theme::named(name);
         let style = if selected {
             Style::default()
                 .fg(theme.bg)
@@ -580,16 +607,37 @@ fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect
         } else {
             Style::default().fg(theme.text)
         };
+        lines.push(Line::from(vec![
+            Span::styled(format!("{marker} "), style),
+            Span::styled("●", Style::default().fg(preview_theme.heading1)),
+            Span::raw(" "),
+            Span::styled("●", Style::default().fg(preview_theme.info)),
+            Span::raw(" "),
+            Span::styled("●", Style::default().fg(preview_theme.warn)),
+            Span::raw(" "),
+            Span::styled(format!("{name}{current_marker}"), style),
+        ]));
+    }
+    if window.end < options.len() {
         lines.push(Line::from(Span::styled(
-            format!("{marker} {name}{current_marker}"),
-            style,
+            format!("  ↓ {} more", options.len() - window.end),
+            theme.dim(),
         )));
     }
     lines.extend([
         Line::from(""),
-        Line::from(Span::styled("↑/↓ select", theme.dim())),
-        Line::from(Span::styled("Enter apply", theme.dim())),
-        Line::from(Span::styled("Esc cancel", theme.dim())),
+        Line::from(vec![
+            Span::styled("Enter", theme.badge(theme.success)),
+            Span::styled(" preview/apply and stay open", theme.dim()),
+        ]),
+        Line::from(vec![
+            Span::styled("Esc/q", theme.badge(theme.text_muted)),
+            Span::styled(" close picker", theme.dim()),
+        ]),
+        Line::from(vec![
+            Span::styled("↑/↓", theme.badge(theme.info)),
+            Span::styled(" scroll window", theme.dim()),
+        ]),
     ]);
     if !app.boxed_chrome {
         lines.insert(
