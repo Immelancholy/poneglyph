@@ -15,7 +15,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use app::{App, FocusPane, ViewMode};
+use app::{App, FocusPane, LeaderMode, ViewMode};
 use theme::Theme;
 
 #[derive(Parser)]
@@ -179,7 +179,7 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = setup_terminal()?;
-    let result = run_app(&mut terminal, App::new(cli.file)?, Theme::slate());
+    let result = run_app(&mut terminal, App::new(cli.file)?);
     restore_terminal(&mut terminal)?;
     result
 }
@@ -199,13 +199,9 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Re
     Ok(())
 }
 
-fn run_app(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    mut app: App,
-    theme: Theme,
-) -> Result<()> {
+fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) -> Result<()> {
     loop {
-        terminal.draw(|frame| ui::draw(frame, &app, &theme))?;
+        terminal.draw(|frame| ui::draw(frame, &app, &app.theme))?;
         if app.should_quit {
             return Ok(());
         }
@@ -283,12 +279,20 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<()> {
         return Ok(());
     }
 
+    if app.theme_picker_mode {
+        return handle_theme_picker_key(app, key);
+    }
+
     if app.show_help {
         match key.code {
             KeyCode::Esc | KeyCode::Char('h') => app.show_help = false,
             _ => {}
         }
         return Ok(());
+    }
+
+    if app.active_leader_mode.is_some() {
+        return handle_active_leader_key(app, key);
     }
 
     if matches!(app.focus, FocusPane::Files) {
@@ -302,6 +306,66 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<()> {
         ViewMode::Preview => handle_preview_key(app, key),
         ViewMode::Edit => handle_edit_key(app, key),
     }
+}
+
+fn handle_active_leader_key(app: &mut App, key: KeyEvent) -> Result<()> {
+    if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
+        app.exit_active_leader_mode();
+        return Ok(());
+    }
+    match app.active_leader_mode {
+        Some(LeaderMode::Edit) => match key.code {
+            KeyCode::Char('s') => {
+                app.save()?;
+                app.active_leader_mode = None;
+            }
+            KeyCode::Char('w') => {
+                app.status = "Wrap toggle: always on for preview".into();
+                app.active_leader_mode = None;
+            }
+            _ => handle_edit_key(app, key)?,
+        },
+        Some(LeaderMode::View) => match key.code {
+            KeyCode::Char('o') => {
+                app.show_outline();
+                app.active_leader_mode = None;
+            }
+            KeyCode::Char('r') => {
+                app.sidebar_collapsed = !app.sidebar_collapsed;
+                app.sidebar_visible = true;
+                app.status = if app.sidebar_collapsed {
+                    "Sidebar: collapsed"
+                } else {
+                    "Sidebar: expanded"
+                }
+                .into();
+                app.active_leader_mode = None;
+            }
+            KeyCode::Char('t') => {
+                app.start_theme_picker();
+                app.active_leader_mode = None;
+            }
+            KeyCode::Char('c') => {
+                app.cycle_cursor_style();
+                app.active_leader_mode = None;
+            }
+            _ => handle_preview_key(app, key)?,
+        },
+        Some(LeaderMode::Files) => handle_files_key(app, key)?,
+        None => {}
+    }
+    Ok(())
+}
+
+fn handle_theme_picker_key(app: &mut App, key: KeyEvent) -> Result<()> {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => app.cancel_theme_picker(),
+        KeyCode::Enter => app.apply_selected_theme(),
+        KeyCode::Up | KeyCode::Char('k') => app.move_theme_selection(-1),
+        KeyCode::Down | KeyCode::Char('j') => app.move_theme_selection(1),
+        _ => {}
+    }
+    Ok(())
 }
 
 fn handle_preview_key(app: &mut App, key: KeyEvent) -> Result<()> {
@@ -330,6 +394,7 @@ fn handle_edit_key(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::PageDown => app.move_page(1),
         KeyCode::Esc => {
             app.mode = ViewMode::Preview;
+            app.active_leader_mode = None;
             app.status = "View: preview".into();
         }
         KeyCode::Enter => app.newline(),
@@ -433,8 +498,28 @@ mod input_tests {
         let mut app = App::new(None).unwrap();
         replay(&mut app, &["ctrl+x", "f"]);
         assert_eq!(app.focus, FocusPane::Files);
+        assert_eq!(app.active_leader_mode, Some(LeaderMode::Files));
         replay(&mut app, &["esc"]);
         assert_eq!(app.focus, FocusPane::Editor);
+        assert_eq!(app.active_leader_mode, None);
+    }
+
+    #[test]
+    fn view_mode_theme_picker_applies_ember() {
+        let mut app = App::new(None).unwrap();
+        replay(&mut app, &["ctrl+x", "v", "t", "up", "enter"]);
+        assert_eq!(app.theme_name, "ember");
+        assert!(!app.theme_picker_mode);
+        assert_eq!(app.status, "Theme -> ember");
+    }
+
+    #[test]
+    fn view_mode_cursor_command_cycles_cursor_style() {
+        let mut app = App::new(None).unwrap();
+        assert_eq!(app.cursor_style, crate::app::CursorStyle::Block);
+        replay(&mut app, &["ctrl+x", "v", "c"]);
+        assert_eq!(app.cursor_style, crate::app::CursorStyle::Bar);
+        assert_eq!(app.active_leader_mode, None);
     }
 
     #[test]

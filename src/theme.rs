@@ -119,6 +119,13 @@ pub struct Theme {
 }
 
 impl Theme {
+    pub fn named(name: &str) -> Self {
+        match name {
+            "ember" => Self::ember(),
+            _ => Self::slate(),
+        }
+    }
+
     pub fn slate() -> Self {
         Self {
             bg: Color::Rgb(0x11, 0x13, 0x18),
@@ -152,6 +159,42 @@ impl Theme {
             image: Color::Rgb(0xc5, 0x86, 0xc0),
             strikethrough: Color::Rgb(0x6a, 0x99, 0x55),
             hr: Color::Rgb(0x3a, 0x47, 0x59),
+        }
+    }
+
+    pub fn ember() -> Self {
+        Self {
+            bg: Color::Rgb(0x16, 0x10, 0x0f),
+            panel: Color::Rgb(0x22, 0x18, 0x15),
+            panel_elevated: Color::Rgb(0x32, 0x22, 0x1d),
+            bg2: Color::Rgb(0x2a, 0x1d, 0x19),
+            border: Color::Rgb(0x4a, 0x32, 0x2a),
+            border_strong: Color::Rgb(0x74, 0x49, 0x36),
+            text: Color::Rgb(0xf4, 0xdd, 0xc8),
+            text_muted: Color::Rgb(0xb8, 0x94, 0x7d),
+            info: Color::Rgb(0xee, 0x9b, 0x72),
+            accent: Color::Rgb(0xff, 0x7a, 0x45),
+            success: Color::Rgb(0xd7, 0xa8, 0x6e),
+            warn: Color::Rgb(0xff, 0xc8, 0x57),
+            error: Color::Rgb(0xff, 0x5d, 0x73),
+            heading1: Color::Rgb(0xff, 0x9f, 0x68),
+            heading2: Color::Rgb(0xff, 0xc8, 0x57),
+            heading3: Color::Rgb(0xf7, 0x8c, 0x6b),
+            heading4: Color::Rgb(0xe0, 0xa4, 0x77),
+            heading5: Color::Rgb(0xff, 0x6b, 0x6b),
+            heading6: Color::Rgb(0xc9, 0x8b, 0x5f),
+            heading_marker: Color::Rgb(0xa8, 0x5f, 0x3d),
+            bold: Color::Rgb(0xff, 0xc8, 0x57),
+            italic: Color::Rgb(0xee, 0x9b, 0x72),
+            bold_italic: Color::Rgb(0xff, 0x7a, 0x90),
+            code: Color::Rgb(0xff, 0xdf, 0x9e),
+            code_bg: Color::Rgb(0x31, 0x20, 0x1a),
+            quote: Color::Rgb(0xd7, 0xa8, 0x6e),
+            quote_marker: Color::Rgb(0xff, 0x7a, 0x45),
+            link: Color::Rgb(0xff, 0x9f, 0x68),
+            image: Color::Rgb(0xff, 0x7a, 0x90),
+            strikethrough: Color::Rgb(0xb8, 0x94, 0x7d),
+            hr: Color::Rgb(0x74, 0x49, 0x36),
         }
     }
 

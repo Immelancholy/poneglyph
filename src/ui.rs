@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{selected_window, App, FocusPane, ViewMode},
+    app::{selected_window, theme_options, App, CursorStyle, FocusPane, LeaderMode, ViewMode},
     markdown::{render_editor_line, render_preview_document},
     theme::Theme,
 };
@@ -42,33 +42,18 @@ fn header_height(w: u16, h: u16) -> u16 {
 }
 
 fn draw_header(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
-    let mode = match app.mode {
-        ViewMode::Preview => "PREVIEW",
-        ViewMode::Edit => "EDIT",
-    };
-    let focus = match app.focus {
-        FocusPane::Editor => "editor",
-        FocusPane::Files => "files",
-        FocusPane::Outline => "outline",
-    };
+    let mode = mode_label(app);
+    let mode_color = mode_color(app, theme);
     let title = app
         .file_path
         .as_ref()
         .and_then(|p| p.file_name())
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "[No Name]".into());
-    let mode_color = if matches!(app.mode, ViewMode::Preview) {
-        theme.warn
-    } else {
-        theme.success
-    };
     let mut lines = vec![Line::from(vec![
-        Span::styled(" Markdown Editor ", theme.badge(theme.accent)),
-        Span::raw(" "),
         Span::styled(format!(" {mode} "), theme.badge(mode_color)),
-        Span::raw(" "),
-        Span::styled(format!(" {focus} "), theme.badge(theme.info)),
         Span::raw("  "),
+        Span::styled("Markdown Editor ", Style::default().fg(theme.text_muted)),
         Span::styled("◆ ", Style::default().fg(theme.border_strong)),
         Span::styled(
             title,
@@ -79,12 +64,134 @@ fn draw_header(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
         } else {
             Span::styled("  saved", theme.dim())
         },
+        Span::styled("  │  ", Style::default().fg(theme.border_strong)),
+        Span::styled(format!("theme:{}", app.theme_name), theme.dim()),
+        Span::styled("  ", Style::default()),
+        cursor_badge(app, theme),
     ])];
-    lines.push(Line::from(vec![
-        Span::styled(" ^X ", theme.badge(theme.accent)),
-        Span::raw(" e edit  p preview  f files  o outline  b/r sidebar  u/y undo-redo  h help  s save  q quit"),
-    ]));
+    lines.push(header_action_line(app, theme));
+    if area.height > 2 {
+        lines.push(Line::from(Span::styled(&app.status, theme.dim())));
+    }
     frame.render_widget(Paragraph::new(lines).style(theme.elevated()), area);
+}
+
+fn mode_label(app: &App) -> &'static str {
+    if let Some(mode) = &app.active_leader_mode {
+        return match mode {
+            LeaderMode::Edit => "EDIT",
+            LeaderMode::View => "VIEW",
+            LeaderMode::Files => "FILES",
+        };
+    }
+    if app.leader {
+        return "LEADER";
+    }
+    if app.theme_picker_mode {
+        return "THEME";
+    }
+    if matches!(app.focus, FocusPane::Files) {
+        return "FILES";
+    }
+    match app.mode {
+        ViewMode::Preview => "PREVIEW",
+        ViewMode::Edit => "EDIT",
+    }
+}
+
+fn mode_color(app: &App, theme: &Theme) -> ratatui::style::Color {
+    match app.active_leader_mode {
+        Some(LeaderMode::Edit) => theme.success,
+        Some(LeaderMode::View) => theme.warn,
+        Some(LeaderMode::Files) => theme.info,
+        None if app.leader => theme.accent,
+        None if app.theme_picker_mode => theme.image,
+        None if matches!(app.focus, FocusPane::Files) => theme.info,
+        None if matches!(app.mode, ViewMode::Edit) => theme.success,
+        None => theme.warn,
+    }
+}
+
+fn cursor_badge<'a>(app: &App, theme: &Theme) -> Span<'a> {
+    let label = match app.cursor_style {
+        CursorStyle::Brackets => "cursor:brackets",
+        CursorStyle::Block => "cursor:block",
+        CursorStyle::Bar => "cursor:bar",
+        CursorStyle::Underline => "cursor:underline",
+        CursorStyle::Box => "cursor:box",
+    };
+    Span::styled(label.to_string(), theme.dim())
+}
+
+fn header_action_line<'a>(app: &App, theme: &Theme) -> Line<'a> {
+    let spans = if app.leader {
+        vec![
+            Span::styled(" ^E ", theme.badge(theme.success)),
+            Span::raw(" Edit  "),
+            Span::styled(" ^V ", theme.badge(theme.warn)),
+            Span::raw(" View  "),
+            Span::styled(" ^F ", theme.badge(theme.info)),
+            Span::raw(" Files  "),
+            Span::styled(" Esc ", theme.badge(theme.text_muted)),
+            Span::raw(" Cancel"),
+        ]
+    } else if let Some(mode) = &app.active_leader_mode {
+        match mode {
+            LeaderMode::Edit => vec![
+                Span::styled(" s ", theme.badge(theme.success)),
+                Span::raw(" Save  "),
+                Span::styled(" w ", theme.badge(theme.success)),
+                Span::raw(" Wrap  "),
+                Span::styled(" Esc/q ", theme.badge(theme.text_muted)),
+                Span::raw(" Exit"),
+            ],
+            LeaderMode::View => vec![
+                Span::styled(" o ", theme.badge(theme.warn)),
+                Span::raw(" Outline  "),
+                Span::styled(" r ", theme.badge(theme.warn)),
+                Span::raw(" Collapse  "),
+                Span::styled(" t ", theme.badge(theme.image)),
+                Span::raw(" Themes  "),
+                Span::styled(" c ", theme.badge(theme.info)),
+                Span::raw(" Cursor  "),
+                Span::styled(" Esc/q ", theme.badge(theme.text_muted)),
+                Span::raw(" Exit"),
+            ],
+            LeaderMode::Files => vec![
+                Span::styled(" ↑↓ ", theme.badge(theme.info)),
+                Span::raw(" Nav  "),
+                Span::styled(" Enter ", theme.badge(theme.info)),
+                Span::raw(" Open  "),
+                Span::styled(" ← ", theme.badge(theme.info)),
+                Span::raw(" Parent  "),
+                Span::styled(" Esc/q ", theme.badge(theme.text_muted)),
+                Span::raw(" Exit"),
+            ],
+        }
+    } else if matches!(app.focus, FocusPane::Files) {
+        vec![
+            Span::styled(" ↑↓ ", theme.badge(theme.info)),
+            Span::raw(" Nav  "),
+            Span::styled(" Enter ", theme.badge(theme.info)),
+            Span::raw(" Open  "),
+            Span::styled(" Esc ", theme.badge(theme.text_muted)),
+            Span::raw(" Editor  "),
+            Span::styled(" ^X ", theme.badge(theme.accent)),
+            Span::raw(" Modes"),
+        ]
+    } else {
+        vec![
+            Span::styled(" ^X ", theme.badge(theme.accent)),
+            Span::raw(" Modes  "),
+            Span::styled(" ^X e ", theme.badge(theme.success)),
+            Span::raw(" Edit  "),
+            Span::styled(" ^X v ", theme.badge(theme.warn)),
+            Span::raw(" View  "),
+            Span::styled(" ^X f ", theme.badge(theme.info)),
+            Span::raw(" Files"),
+        ]
+    };
+    Line::from(spans)
 }
 
 fn draw_body(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
@@ -182,11 +289,8 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .map(|c| c.to_string())
                 .unwrap_or_else(|| " ".into());
             spans.push(Span::styled(
-                cursor_char.clone(),
-                Style::default()
-                    .fg(theme.bg)
-                    .bg(theme.info)
-                    .add_modifier(Modifier::BOLD),
+                cursor_glyph(app, &cursor_char),
+                cursor_style(app, theme),
             ));
             let rest = after.get(cursor_char.len()..).unwrap_or("");
             spans.push(Span::styled(
@@ -218,6 +322,28 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     frame.render_widget(p, area);
 }
 
+fn cursor_glyph(app: &App, ch: &str) -> String {
+    match app.cursor_style {
+        CursorStyle::Bar => format!("▏{ch}"),
+        CursorStyle::Underline => format!("{ch}̲"),
+        CursorStyle::Box => format!("[{ch}]"),
+        CursorStyle::Brackets => format!("[{ch}]"),
+        CursorStyle::Block => ch.to_string(),
+    }
+}
+
+fn cursor_style(app: &App, theme: &Theme) -> Style {
+    match app.cursor_style {
+        CursorStyle::Bar | CursorStyle::Underline | CursorStyle::Brackets | CursorStyle::Box => {
+            Style::default().fg(theme.info).add_modifier(Modifier::BOLD)
+        }
+        CursorStyle::Block => Style::default()
+            .fg(theme.bg)
+            .bg(theme.info)
+            .add_modifier(Modifier::BOLD),
+    }
+}
+
 fn split_at_char(s: &str, col: usize) -> (String, &str) {
     let byte = s.char_indices().nth(col).map(|(i, _)| i).unwrap_or(s.len());
     (s[..byte].to_string(), &s[byte..])
@@ -237,7 +363,9 @@ fn draw_sidebar(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
         frame.render_widget(p, area);
         return;
     }
-    if app.show_help {
+    if app.theme_picker_mode {
+        draw_theme_picker(frame, app, theme, area);
+    } else if app.show_help {
         draw_help(frame, theme, area);
     } else if app.sidebar_files {
         draw_files(frame, app, theme, area);
@@ -338,6 +466,53 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     frame.render_widget(p, area);
 }
 
+fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "THEME SELECTOR",
+            Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+    ];
+    for (idx, name) in theme_options().into_iter().enumerate() {
+        let selected = idx == app.theme_picker_index;
+        let current = name == app.theme_name;
+        let marker = if selected { "›" } else { " " };
+        let current_marker = if current { " *" } else { "" };
+        let style = if selected {
+            Style::default()
+                .fg(theme.bg)
+                .bg(theme.image)
+                .add_modifier(Modifier::BOLD)
+        } else if current {
+            Style::default().fg(theme.success)
+        } else {
+            Style::default().fg(theme.text)
+        };
+        lines.push(Line::from(Span::styled(
+            format!("{marker} {name}{current_marker}"),
+            style,
+        )));
+    }
+    lines.extend([
+        Line::from(""),
+        Line::from(Span::styled("↑/↓ select", theme.dim())),
+        Line::from(Span::styled("Enter apply", theme.dim())),
+        Line::from(Span::styled("Esc cancel", theme.dim())),
+    ]);
+    let p = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(" Theme Selector ")
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .padding(Padding::horizontal(1))
+                .border_style(Style::default().fg(theme.image)),
+        )
+        .style(theme.panel());
+    frame.render_widget(p, area);
+}
+
 fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let entries = app.file_entries();
     let visible_rows = area.height.saturating_sub(2) as usize;
@@ -430,10 +605,10 @@ fn draw_help(frame: &mut Frame<'_>, theme: &Theme, area: Rect) {
         )),
         Line::from(""),
         Line::from("Ctrl+X e/p  Edit / preview"),
-        Line::from("Ctrl+X f/o  Files / outline"),
-        Line::from("Ctrl+X b/r  Toggle sidebar collapse"),
-        Line::from("Ctrl+X u/y  Undo / redo"),
-        Line::from("Ctrl+X s    Save"),
+        Line::from("Ctrl+X e/v/f  Enter edit/view/files modes"),
+        Line::from("View: o outline, r collapse, t themes, c cursor"),
+        Line::from("Edit: s save, w wrap"),
+        Line::from("Ctrl+Z/Y    Undo / redo"),
         Line::from("Ctrl+X q    Quit"),
         Line::from("Ctrl+Q      Quit from anywhere"),
         Line::from(""),

@@ -9,7 +9,10 @@ use serde::Serialize;
 use unicode_width::UnicodeWidthStr;
 use walkdir::WalkDir;
 
-use crate::markdown::{outline, OutlineItem};
+use crate::{
+    markdown::{outline, OutlineItem},
+    theme::Theme,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum ViewMode {
@@ -22,6 +25,22 @@ pub enum FocusPane {
     Editor,
     Files,
     Outline,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum LeaderMode {
+    Edit,
+    View,
+    Files,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum CursorStyle {
+    Brackets,
+    Block,
+    Bar,
+    Underline,
+    Box,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -62,6 +81,12 @@ pub struct App {
     pub sidebar_files: bool,
     pub show_help: bool,
     pub leader: bool,
+    pub active_leader_mode: Option<LeaderMode>,
+    pub theme_picker_mode: bool,
+    pub theme_picker_index: usize,
+    pub theme_name: String,
+    pub theme: Theme,
+    pub cursor_style: CursorStyle,
     pub status: String,
     pub should_quit: bool,
     pub file_browser_cwd: PathBuf,
@@ -89,7 +114,13 @@ impl App {
             sidebar_files: false,
             show_help: false,
             leader: false,
-            status: "Markdown viewer: Ctrl+X for commands".into(),
+            active_leader_mode: None,
+            theme_picker_mode: false,
+            theme_picker_index: 1,
+            theme_name: "slate".into(),
+            theme: Theme::slate(),
+            cursor_style: CursorStyle::Block,
+            status: "Markdown viewer: Ctrl+X then e/v/f for modes".into(),
             should_quit: false,
             file_browser_cwd: cwd,
             selected_file: 0,
@@ -372,31 +403,12 @@ impl App {
     pub fn command(&mut self, key: char) -> Result<()> {
         self.leader = false;
         match key {
-            'e' => {
-                self.mode = ViewMode::Edit;
-                self.focus = FocusPane::Editor;
-                self.status = "View: edit".into();
-            }
-            'p' => {
-                self.mode = ViewMode::Preview;
-                self.focus = FocusPane::Editor;
-                self.status = "View: preview".into();
-            }
-            'f' => {
-                self.sidebar_visible = true;
-                self.sidebar_files = true;
-                self.focus = FocusPane::Files;
-                self.status = "Files focused".into();
-            }
-            'o' => {
-                self.sidebar_visible = true;
-                self.sidebar_files = false;
-                self.focus = FocusPane::Outline;
-                self.selected_outline = self
-                    .selected_outline
-                    .min(self.outline().len().saturating_sub(1));
-                self.status = "Outline focused".into();
-            }
+            'e' => self.enter_leader_mode(LeaderMode::Edit),
+            'v' | 'p' => self.enter_leader_mode(LeaderMode::View),
+            'f' => self.enter_leader_mode(LeaderMode::Files),
+            'o' => self.show_outline(),
+            't' => self.start_theme_picker(),
+            'c' => self.cycle_cursor_style(),
             'b' | 'r' => {
                 self.sidebar_collapsed = !self.sidebar_collapsed;
                 self.sidebar_visible = true;
@@ -423,6 +435,104 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    pub fn enter_leader_mode(&mut self, mode: LeaderMode) {
+        self.leader = false;
+        if self.active_leader_mode == Some(mode.clone()) {
+            self.exit_active_leader_mode();
+            return;
+        }
+        self.active_leader_mode = Some(mode.clone());
+        match mode {
+            LeaderMode::Edit => {
+                self.mode = ViewMode::Edit;
+                self.focus = FocusPane::Editor;
+                self.status = "Edit mode: s save, w wrap, Esc exits".into();
+            }
+            LeaderMode::View => {
+                self.mode = ViewMode::Preview;
+                self.focus = FocusPane::Editor;
+                self.status = "View mode: o outline, r collapse, t themes, c cursor".into();
+            }
+            LeaderMode::Files => {
+                self.sidebar_visible = true;
+                self.sidebar_files = true;
+                self.focus = FocusPane::Files;
+                self.status = "Files mode: arrows navigate, Enter open, Esc exits".into();
+            }
+        }
+    }
+
+    pub fn exit_active_leader_mode(&mut self) {
+        let was = self.active_leader_mode.take();
+        if matches!(was, Some(LeaderMode::Edit)) {
+            self.mode = ViewMode::Preview;
+        }
+        if matches!(was, Some(LeaderMode::Files)) {
+            self.sidebar_files = false;
+            self.focus = FocusPane::Editor;
+        }
+        self.status = "Mode exited".into();
+    }
+
+    pub fn show_outline(&mut self) {
+        self.sidebar_visible = true;
+        self.sidebar_files = false;
+        self.focus = FocusPane::Outline;
+        self.selected_outline = self
+            .selected_outline
+            .min(self.outline().len().saturating_sub(1));
+        self.status = "Outline focused".into();
+    }
+
+    pub fn start_theme_picker(&mut self) {
+        self.sidebar_visible = true;
+        self.sidebar_files = false;
+        self.show_help = false;
+        self.theme_picker_mode = true;
+        self.theme_picker_index = theme_options()
+            .iter()
+            .position(|name| *name == self.theme_name)
+            .unwrap_or(0);
+        self.status = "Theme picker: ↑/↓ select, Enter apply, Esc cancel".into();
+    }
+
+    pub fn cancel_theme_picker(&mut self) {
+        self.theme_picker_mode = false;
+        self.status = "Theme picker cancelled".into();
+    }
+
+    pub fn move_theme_selection(&mut self, delta: isize) {
+        let options = theme_options();
+        if options.is_empty() {
+            return;
+        }
+        let len = options.len() as isize;
+        let next = (self.theme_picker_index as isize + delta).rem_euclid(len);
+        self.theme_picker_index = next as usize;
+    }
+
+    pub fn apply_selected_theme(&mut self) {
+        let options = theme_options();
+        let Some(name) = options.get(self.theme_picker_index).copied() else {
+            return;
+        };
+        self.theme_name = name.to_string();
+        self.theme = Theme::named(name);
+        self.theme_picker_mode = false;
+        self.status = format!("Theme -> {name}");
+    }
+
+    pub fn cycle_cursor_style(&mut self) {
+        self.cursor_style = match self.cursor_style {
+            CursorStyle::Brackets => CursorStyle::Block,
+            CursorStyle::Block => CursorStyle::Bar,
+            CursorStyle::Bar => CursorStyle::Underline,
+            CursorStyle::Underline => CursorStyle::Box,
+            CursorStyle::Box => CursorStyle::Brackets,
+        };
+        self.status = format!("Cursor: {:?}", self.cursor_style);
     }
 
     pub fn jump_to_selected_outline(&mut self) {
@@ -459,6 +569,10 @@ fn byte_index_for_char_col(s: &str, col: usize) -> usize {
 }
 fn previous_char_boundary(s: &str, byte: usize) -> usize {
     s[..byte].char_indices().last().map(|(i, _)| i).unwrap_or(0)
+}
+
+pub fn theme_options() -> Vec<&'static str> {
+    vec!["ember", "slate"]
 }
 
 fn default_content() -> String {
