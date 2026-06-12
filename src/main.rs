@@ -71,6 +71,8 @@ enum Command {
         #[arg(long)]
         collapsed: bool,
     },
+    /// Print Rust theme tokens in the Bun md-editor token schema
+    ThemeTokens,
     /// Replay comma-separated key names and print final state JSON
     StateAfterKeys { file: PathBuf, keys: String },
 }
@@ -148,6 +150,13 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&debug_emit::sidebar_lines(&app, width, height))?
+            );
+            return Ok(());
+        }
+        Some(Command::ThemeTokens) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&Theme::slate().tokens())?
             );
             return Ok(());
         }

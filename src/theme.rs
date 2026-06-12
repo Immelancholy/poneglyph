@@ -1,4 +1,86 @@
 use ratatui::style::{Color, Modifier, Style};
+use serde::Serialize;
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ThemeTokens {
+    pub slate: SlateTokens,
+    pub semantic: SemanticTokens,
+    pub syntax: SyntaxTokens,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SlateTokens {
+    pub bg0: String,
+    pub bg1: String,
+    pub bg2: String,
+    pub panel: String,
+    #[serde(rename = "panelElevated")]
+    pub panel_elevated: String,
+    #[serde(rename = "borderSoft")]
+    pub border_soft: String,
+    #[serde(rename = "borderStrong")]
+    pub border_strong: String,
+    pub text: String,
+    #[serde(rename = "textMuted")]
+    pub text_muted: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SemanticTokens {
+    pub success: String,
+    pub warn: String,
+    pub error: String,
+    pub info: String,
+    pub accent: String,
+    #[serde(rename = "modeLog")]
+    pub mode_log: String,
+    #[serde(rename = "modeEdit")]
+    pub mode_edit: String,
+    #[serde(rename = "modePreview")]
+    pub mode_preview: String,
+    #[serde(rename = "modeFiles")]
+    pub mode_files: String,
+    #[serde(rename = "modeLeader")]
+    pub mode_leader: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SyntaxTokens {
+    pub heading1: String,
+    pub heading2: String,
+    pub heading3: String,
+    pub heading4: String,
+    pub heading5: String,
+    pub heading6: String,
+    #[serde(rename = "headingMarker")]
+    pub heading_marker: String,
+    pub bold: String,
+    pub italic: String,
+    #[serde(rename = "boldItalic")]
+    pub bold_italic: String,
+    pub code: String,
+    #[serde(rename = "codeBg")]
+    pub code_bg: String,
+    pub strikethrough: String,
+    #[serde(rename = "listMarker")]
+    pub list_marker: String,
+    pub blockquote: String,
+    #[serde(rename = "blockquoteMarker")]
+    pub blockquote_marker: String,
+    pub link: String,
+    #[serde(rename = "linkText")]
+    pub link_text: String,
+    #[serde(rename = "linkUrl")]
+    pub link_url: String,
+    pub image: String,
+    #[serde(rename = "codeBlockBorder")]
+    pub code_block_border: String,
+    #[serde(rename = "codeBlockLang")]
+    pub code_block_lang: String,
+    #[serde(rename = "horizontalRule")]
+    pub horizontal_rule: String,
+    pub marker: String,
+}
 
 #[derive(Clone, Debug)]
 pub struct Theme {
@@ -73,6 +155,60 @@ impl Theme {
         }
     }
 
+    pub fn tokens(&self) -> ThemeTokens {
+        ThemeTokens {
+            slate: SlateTokens {
+                bg0: color_hex(self.bg),
+                bg1: color_hex(Color::Rgb(0x16, 0x1b, 0x22)),
+                bg2: color_hex(self.bg2),
+                panel: color_hex(self.panel),
+                panel_elevated: color_hex(self.panel_elevated),
+                border_soft: color_hex(self.border),
+                border_strong: color_hex(self.border_strong),
+                text: color_hex(self.text),
+                text_muted: color_hex(self.text_muted),
+            },
+            semantic: SemanticTokens {
+                success: color_hex(self.success),
+                warn: color_hex(self.warn),
+                error: color_hex(self.error),
+                info: color_hex(self.info),
+                accent: color_hex(self.accent),
+                mode_log: color_hex(self.accent),
+                mode_edit: color_hex(self.success),
+                mode_preview: color_hex(self.warn),
+                mode_files: color_hex(self.info),
+                mode_leader: color_hex(self.accent),
+            },
+            syntax: SyntaxTokens {
+                heading1: color_hex(self.heading1),
+                heading2: color_hex(self.heading2),
+                heading3: color_hex(self.heading3),
+                heading4: color_hex(self.heading4),
+                heading5: color_hex(self.heading5),
+                heading6: color_hex(self.heading6),
+                heading_marker: color_hex(self.heading_marker),
+                bold: color_hex(self.bold),
+                italic: color_hex(self.italic),
+                bold_italic: color_hex(self.bold_italic),
+                code: color_hex(self.code),
+                code_bg: color_hex(self.code_bg),
+                strikethrough: color_hex(self.strikethrough),
+                list_marker: color_hex(self.warn),
+                blockquote: color_hex(self.quote),
+                blockquote_marker: color_hex(self.quote_marker),
+                link: color_hex(self.link),
+                link_text: color_hex(self.heading4),
+                link_url: color_hex(self.heading5),
+                image: color_hex(self.image),
+                code_block_border: color_hex(self.heading_marker),
+                code_block_lang: color_hex(self.code),
+                horizontal_rule: color_hex(self.hr),
+                marker: color_hex(self.heading_marker),
+            },
+        }
+    }
+
     pub fn base(&self) -> Style {
         Style::default().fg(self.text).bg(self.bg)
     }
@@ -94,5 +230,27 @@ impl Theme {
             .fg(self.bg)
             .bg(color)
             .add_modifier(Modifier::BOLD)
+    }
+}
+
+fn color_hex(color: Color) -> String {
+    match color {
+        Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
+        _ => "#000000".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slate_tokens_match_bun_default_values() {
+        let tokens = Theme::slate().tokens();
+        assert_eq!(tokens.slate.bg0, "#111318");
+        assert_eq!(tokens.slate.panel_elevated, "#222b37");
+        assert_eq!(tokens.semantic.mode_preview, "#c9a86a");
+        assert_eq!(tokens.syntax.heading1, "#4ec9b0");
+        assert_eq!(tokens.syntax.code_bg, "#2d2d2d");
     }
 }
