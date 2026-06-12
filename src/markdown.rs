@@ -219,6 +219,62 @@ fn ordered(line: &str) -> bool {
         && s.as_bytes().get(dot + 1) == Some(&b' ')
 }
 
+pub fn render_preview_document<'a>(
+    content: &'a str,
+    scroll: usize,
+    take: usize,
+    theme: &Theme,
+) -> Vec<Line<'a>> {
+    let mut in_code = false;
+    let mut rendered = Vec::new();
+    for raw in content.split('\n') {
+        if raw.starts_with("```") {
+            if in_code {
+                in_code = false;
+                rendered.push(Line::from(vec![
+                    Span::styled(
+                        "╰─ ",
+                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                    ),
+                    Span::styled(
+                        raw.to_string(),
+                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                    ),
+                ]));
+            } else {
+                let language = raw.trim_start_matches("```").trim().to_string();
+                in_code = true;
+                let label = if language.is_empty() {
+                    "code"
+                } else {
+                    &language
+                };
+                rendered.push(Line::from(vec![
+                    Span::styled(
+                        "╭─ ",
+                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                    ),
+                    Span::styled(
+                        label.to_string(),
+                        Style::default()
+                            .fg(theme.code)
+                            .bg(theme.code_bg)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]));
+            }
+        } else if in_code {
+            rendered.push(Line::from(Span::styled(
+                format!("  {raw}"),
+                Style::default().fg(theme.code).bg(theme.code_bg),
+            )));
+        } else {
+            rendered.push(render_preview_line(raw, theme));
+        }
+    }
+    rendered.into_iter().skip(scroll).take(take).collect()
+}
+
 pub fn render_preview_line<'a>(raw: &'a str, theme: &Theme) -> Line<'a> {
     if let Some((level, title)) = heading(raw) {
         let color = match level {

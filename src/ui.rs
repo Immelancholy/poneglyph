@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     app::{App, FocusPane, ViewMode},
-    markdown::{render_editor_line, render_preview_line},
+    markdown::{render_editor_line, render_preview_document},
     theme::Theme,
 };
 
@@ -136,13 +136,12 @@ fn draw_main(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
 }
 
 fn draw_preview(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
-    let lines: Vec<Line> = app
-        .lines()
-        .into_iter()
-        .skip(app.preview_scroll)
-        .take(area.height.saturating_sub(2) as usize)
-        .map(|l| render_preview_line(l, theme))
-        .collect();
+    let lines: Vec<Line> = render_preview_document(
+        &app.content,
+        app.preview_scroll,
+        area.height.saturating_sub(2) as usize,
+        theme,
+    );
     let p = Paragraph::new(lines)
         .block(
             Block::default()
