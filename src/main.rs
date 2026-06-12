@@ -301,6 +301,8 @@ fn handle_preview_key(app: &mut App, key: KeyEvent) -> Result<()> {
         KeyCode::Down | KeyCode::Char('j') => app.scroll_preview(1),
         KeyCode::PageUp => app.scroll_preview(-10),
         KeyCode::PageDown => app.scroll_preview(10),
+        KeyCode::Home => app.preview_home(),
+        KeyCode::End => app.preview_end(),
         KeyCode::Esc => app.focus = FocusPane::Editor,
         _ => {}
     }
@@ -450,6 +452,21 @@ mod input_tests {
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "Zabc");
         assert!(!app.modified);
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn preview_scroll_keys_are_bounded_and_support_home_end() {
+        let mut app = App::new(None).unwrap();
+        app.content = (0..5)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        replay(&mut app, &["pagedown", "pagedown", "end"]);
+        assert_eq!(app.preview_scroll, 4);
+        replay(&mut app, &["pagedown"]);
+        assert_eq!(app.preview_scroll, 4);
+        replay(&mut app, &["home"]);
+        assert_eq!(app.preview_scroll, 0);
     }
 
     #[test]

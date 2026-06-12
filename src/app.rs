@@ -350,8 +350,23 @@ impl App {
         self.modified = true;
     }
 
+    pub fn max_preview_scroll(&self) -> usize {
+        self.lines().len().saturating_sub(1)
+    }
+
     pub fn scroll_preview(&mut self, delta: isize) {
-        self.preview_scroll = self.preview_scroll.saturating_add_signed(delta);
+        self.preview_scroll = self
+            .preview_scroll
+            .saturating_add_signed(delta)
+            .min(self.max_preview_scroll());
+    }
+
+    pub fn preview_home(&mut self) {
+        self.preview_scroll = 0;
+    }
+
+    pub fn preview_end(&mut self) {
+        self.preview_scroll = self.max_preview_scroll();
     }
 
     pub fn command(&mut self, key: char) -> Result<()> {
@@ -524,5 +539,19 @@ mod tests {
         assert_eq!(selected_window(20, 10, 5), 8..13);
         assert_eq!(selected_window(20, 19, 5), 15..20);
         assert_eq!(selected_window(3, 2, 10), 0..3);
+    }
+
+    #[test]
+    fn preview_scroll_is_bounded() {
+        let mut app = App::new(None).unwrap();
+        app.content = "a\nb\nc".into();
+        app.scroll_preview(99);
+        assert_eq!(app.preview_scroll, 2);
+        app.scroll_preview(-99);
+        assert_eq!(app.preview_scroll, 0);
+        app.preview_end();
+        assert_eq!(app.preview_scroll, 2);
+        app.preview_home();
+        assert_eq!(app.preview_scroll, 0);
     }
 }
