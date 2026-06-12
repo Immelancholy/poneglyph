@@ -270,6 +270,19 @@ pub fn render_preview_document(
                 format!("  {raw}"),
                 Style::default().fg(theme.code).bg(theme.code_bg),
             )));
+        } else if let Some((level, title)) = heading(raw) {
+            rendered.push(render_preview_line(raw, theme));
+            let underline_len = title.width().clamp(4, width.max(4));
+            let underline_char = match level {
+                1 => '━',
+                2 => '─',
+                3 => '┄',
+                _ => '·',
+            };
+            rendered.push(Line::from(Span::styled(
+                underline_char.to_string().repeat(underline_len),
+                Style::default().fg(theme.heading_marker),
+            )));
         } else {
             rendered.push(render_preview_line(raw, theme));
         }
@@ -292,9 +305,17 @@ pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
             5 => theme.heading5,
             _ => theme.heading6,
         };
+        let prefix = match level {
+            1 => "▌ ",
+            2 => "▸ ",
+            3 => "› ",
+            _ => "  ",
+        };
         let mut spans = vec![Span::styled(
-            format!("{} ", "#".repeat(level as usize)),
-            Style::default().fg(theme.heading_marker),
+            prefix,
+            Style::default()
+                .fg(theme.heading_marker)
+                .add_modifier(Modifier::BOLD),
         )];
         spans.extend(render_inline_spans(
             title,
@@ -333,10 +354,16 @@ pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
     if unordered(raw) || ordered(raw) {
         let prefix_len = raw.find(' ').map(|i| i + 1).unwrap_or(0);
         let (prefix, rest) = raw.split_at(prefix_len.min(raw.len()));
-        let mut spans = vec![Span::styled(
-            prefix.to_string(),
-            Style::default().fg(theme.warn),
-        )];
+        let indent = prefix
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect::<String>();
+        let marker = if unordered(raw) {
+            format!("{indent}• ")
+        } else {
+            prefix.to_string()
+        };
+        let mut spans = vec![Span::styled(marker, Style::default().fg(theme.warn))];
         spans.extend(render_inline_spans(
             rest,
             theme,
@@ -414,14 +441,10 @@ fn wrap_styled_line(line: Line<'static>, width: usize) -> Vec<Line<'static>> {
 fn continuation_prefix(plain: &str) -> String {
     let trimmed = plain.trim_start();
     let leading = plain.len().saturating_sub(trimmed.len());
-    if trimmed.starts_with('▌') {
+    if trimmed.starts_with('▌') || trimmed.starts_with('▸') || trimmed.starts_with('›') {
         return " ".repeat(leading + 2);
     }
-    if trimmed.starts_with('#') {
-        let marker_len = trimmed.chars().take_while(|c| *c == '#').count() + 1;
-        return " ".repeat(leading + marker_len);
-    }
-    if matches!(trimmed.as_bytes(), [b'-' | b'*' | b'+', b' ', ..]) {
+    if trimmed.starts_with('•') || matches!(trimmed.as_bytes(), [b'-' | b'*' | b'+', b' ', ..]) {
         return " ".repeat(leading + 2);
     }
     if let Some(dot) = trimmed.find(". ") {
@@ -646,6 +669,25 @@ mod tests {
             .collect();
         assert!(plain.len() > 1);
         assert!(plain[1].starts_with("  "));
+    }
+
+    #[test]
+    fn preview_uses_rich_markdown_shapes_instead_of_raw_hashes() {
+        let theme = Theme::slate();
+        let rows = render_preview_document("# Title\n\n- item", 0, 10, 40, &theme);
+        let plain: Vec<String> = rows
+            .into_iter()
+            .map(|line| {
+                line.spans
+                    .into_iter()
+                    .map(|s| s.content.to_string())
+                    .collect()
+            })
+            .collect();
+        assert!(plain.iter().any(|line| line.contains("▌ Title")));
+        assert!(plain.iter().any(|line| line.contains("━━━━")));
+        assert!(plain.iter().any(|line| line.contains("• item")));
+        assert!(!plain.iter().any(|line| line.starts_with("# Title")));
     }
 
     #[test]

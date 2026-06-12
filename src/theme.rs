@@ -163,7 +163,19 @@ impl Theme {
             };
             theme.apply_token(&section, key, color);
         }
+        theme.ensure_readable_contrast();
         theme
+    }
+
+    fn ensure_readable_contrast(&mut self) {
+        self.text = readable_on(self.text, self.bg);
+        self.text = readable_on(self.text, self.panel);
+        self.text = readable_on(self.text, self.panel_elevated);
+        self.text_muted = readable_muted_on(self.text_muted, self.bg, self.text);
+        self.text_muted = readable_muted_on(self.text_muted, self.panel, self.text);
+        self.text_muted = readable_muted_on(self.text_muted, self.panel_elevated, self.text);
+        self.link = readable_on(self.link, self.bg);
+        self.quote = readable_muted_on(self.quote, self.bg, self.text);
     }
 
     fn apply_token(&mut self, section: &str, key: &str, color: Color) {
@@ -198,7 +210,7 @@ impl Theme {
             ("syntax", "strikethrough") => self.strikethrough = color,
             ("syntax", "blockquote") => self.quote = color,
             ("syntax", "blockquoteMarker") => self.quote_marker = color,
-            ("syntax", "link" | "linkText") => self.link = color,
+            ("syntax", "link") => self.link = color,
             ("syntax", "image") => self.image = color,
             ("syntax", "horizontalRule") => self.hr = color,
             _ => {}
@@ -367,6 +379,50 @@ fn theme_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+fn readable_on(fg: Color, bg: Color) -> Color {
+    if contrast_ratio(fg, bg).unwrap_or(21.0) < 4.5 {
+        Color::Rgb(0xf8, 0xf8, 0xf2)
+    } else {
+        fg
+    }
+}
+
+fn readable_muted_on(fg: Color, bg: Color, fallback: Color) -> Color {
+    if contrast_ratio(fg, bg).unwrap_or(21.0) < 2.6 {
+        fallback
+    } else {
+        fg
+    }
+}
+
+fn contrast_ratio(a: Color, b: Color) -> Option<f32> {
+    let (ar, ag, ab) = color_rgb(a)?;
+    let (br, bg, bb) = color_rgb(b)?;
+    let al = rel_luminance(ar, ag, ab);
+    let bl = rel_luminance(br, bg, bb);
+    let (light, dark) = if al > bl { (al, bl) } else { (bl, al) };
+    Some((light + 0.05) / (dark + 0.05))
+}
+
+fn color_rgb(color: Color) -> Option<(u8, u8, u8)> {
+    match color {
+        Color::Rgb(r, g, b) => Some((r, g, b)),
+        _ => None,
+    }
+}
+
+fn rel_luminance(r: u8, g: u8, b: u8) -> f32 {
+    fn channel(v: u8) -> f32 {
+        let c = v as f32 / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+    0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
 fn parse_hex_color(raw: &str) -> Option<Color> {
     let hex = raw.strip_prefix('#')?;
     if hex.len() != 6 {
@@ -395,6 +451,14 @@ mod tests {
         let theme = Theme::from_theme_toml(raw);
         assert_eq!(color_hex(theme.bg), "#1a1b26");
         assert_eq!(color_hex(theme.heading1), "#bb9af7");
+    }
+
+    #[test]
+    fn low_contrast_theme_tokens_are_guarded() {
+        let raw = "[slate]\nbg0 = \"#282a36\"\npanelElevated = \"#6272a4\"\ntextMuted = \"#6272a4\"\n[syntax]\nlink = \"#8be9fd\"\nlinkText = \"#6272a4\"\n";
+        let theme = Theme::from_theme_toml(raw);
+        assert_ne!(color_hex(theme.text_muted), "#6272a4");
+        assert_eq!(color_hex(theme.link), "#8be9fd");
     }
 
     #[test]
