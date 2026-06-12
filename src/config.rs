@@ -3,13 +3,15 @@ use std::{fs, path::PathBuf};
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::app::CursorStyle;
+use crate::app::{CursorStyle, ThemeSwatchStyle};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct AppConfig {
     pub theme: Option<String>,
     pub cursor_style: Option<CursorStyle>,
     pub boxed_chrome: Option<bool>,
+    pub theme_swatch_style: Option<ThemeSwatchStyle>,
+    pub theme_swatch_spacing: Option<usize>,
 }
 
 impl AppConfig {
@@ -45,6 +47,18 @@ impl AppConfig {
         }
         if let Some(boxed_chrome) = self.boxed_chrome {
             out.push_str(&format!("boxedChrome = {}\n", boxed_chrome));
+        }
+        if let Some(theme_swatch_style) = &self.theme_swatch_style {
+            out.push_str(&format!(
+                "themeSwatches = \"{}\"\n",
+                theme_swatch_style.as_config_str()
+            ));
+        }
+        if let Some(theme_swatch_spacing) = self.theme_swatch_spacing {
+            out.push_str(&format!(
+                "themeSwatchSpacing = {}\n",
+                theme_swatch_spacing.min(8)
+            ));
         }
         out
     }
@@ -107,6 +121,12 @@ pub fn parse_config(raw: &str) -> AppConfig {
                 cfg.cursor_style = CursorStyle::from_config_str(value)
             }
             "boxedChrome" | "boxed_chrome" => cfg.boxed_chrome = parse_bool(value),
+            "themeSwatches" | "themeSwatchStyle" | "theme_swatches" => {
+                cfg.theme_swatch_style = ThemeSwatchStyle::from_config_str(value)
+            }
+            "themeSwatchSpacing" | "theme_swatch_spacing" => {
+                cfg.theme_swatch_spacing = value.parse::<usize>().ok().map(|n| n.min(8))
+            }
             _ => {}
         }
     }
@@ -137,11 +157,15 @@ mod tests {
             theme = "tokyo-night"
             cursorStyle = "underline"
             boxedChrome = false
+            themeSwatches = "square"
+            themeSwatchSpacing = 0
             "##,
         );
         assert_eq!(cfg.theme.as_deref(), Some("tokyo-night"));
         assert_eq!(cfg.cursor_style, Some(CursorStyle::Underline));
         assert_eq!(cfg.boxed_chrome, Some(false));
+        assert_eq!(cfg.theme_swatch_style, Some(ThemeSwatchStyle::Square));
+        assert_eq!(cfg.theme_swatch_spacing, Some(0));
     }
 
     #[test]
@@ -150,10 +174,14 @@ mod tests {
             theme: Some("slate".into()),
             cursor_style: Some(CursorStyle::Bar),
             boxed_chrome: Some(true),
+            theme_swatch_style: Some(ThemeSwatchStyle::Circle),
+            theme_swatch_spacing: Some(2),
         };
         let toml = cfg.to_toml();
         assert!(toml.contains("theme = \"slate\""));
         assert!(toml.contains("cursorStyle = \"bar\""));
         assert!(toml.contains("boxedChrome = true"));
+        assert!(toml.contains("themeSwatches = \"circle\""));
+        assert!(toml.contains("themeSwatchSpacing = 2"));
     }
 }

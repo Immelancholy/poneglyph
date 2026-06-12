@@ -45,6 +45,13 @@ pub enum CursorStyle {
     Box,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub enum ThemeSwatchStyle {
+    Off,
+    Circle,
+    Square,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct FileEntry {
     pub name: String,
@@ -90,6 +97,8 @@ pub struct App {
     pub theme: Theme,
     pub cursor_style: CursorStyle,
     pub boxed_chrome: bool,
+    pub theme_swatch_style: ThemeSwatchStyle,
+    pub theme_swatch_spacing: usize,
     pub status: String,
     pub should_quit: bool,
     pub file_browser_cwd: PathBuf,
@@ -123,6 +132,25 @@ impl CursorStyle {
     }
 }
 
+impl ThemeSwatchStyle {
+    pub fn as_config_str(&self) -> &'static str {
+        match self {
+            ThemeSwatchStyle::Off => "off",
+            ThemeSwatchStyle::Circle => "circle",
+            ThemeSwatchStyle::Square => "square",
+        }
+    }
+
+    pub fn from_config_str(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "off" | "none" | "false" | "0" => Some(ThemeSwatchStyle::Off),
+            "circle" | "circles" | "dot" | "dots" => Some(ThemeSwatchStyle::Circle),
+            "square" | "squares" | "swatch" | "blocks" => Some(ThemeSwatchStyle::Square),
+            _ => None,
+        }
+    }
+}
+
 impl App {
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         let cwd = std::env::current_dir()?;
@@ -134,6 +162,11 @@ impl App {
         let theme_name = config.theme.clone().unwrap_or_else(|| "slate".into());
         let cursor_style = config.cursor_style.clone().unwrap_or(CursorStyle::Block);
         let boxed_chrome = config.boxed_chrome.unwrap_or(true);
+        let theme_swatch_style = config
+            .theme_swatch_style
+            .clone()
+            .unwrap_or(ThemeSwatchStyle::Off);
+        let theme_swatch_spacing = config.theme_swatch_spacing.unwrap_or(0).min(8);
         let mut app = Self {
             content: default_content(),
             file_path: None,
@@ -156,6 +189,8 @@ impl App {
             theme: Theme::named(&theme_name),
             cursor_style,
             boxed_chrome,
+            theme_swatch_style,
+            theme_swatch_spacing,
             status: "Markdown viewer: Ctrl+E edit, Ctrl+V view, Ctrl+F files".into(),
             should_quit: false,
             file_browser_cwd: cwd,
@@ -594,6 +629,8 @@ impl App {
             theme: Some(self.theme_name.clone()),
             cursor_style: Some(self.cursor_style.clone()),
             boxed_chrome: Some(self.boxed_chrome),
+            theme_swatch_style: Some(self.theme_swatch_style.clone()),
+            theme_swatch_spacing: Some(self.theme_swatch_spacing),
         };
         if let Err(err) = cfg.save() {
             self.status = format!("Config save failed: {err}");

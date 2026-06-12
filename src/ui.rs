@@ -7,7 +7,10 @@ use ratatui::{
 };
 
 use crate::{
-    app::{selected_window, theme_options, App, CursorStyle, FocusPane, LeaderMode, ViewMode},
+    app::{
+        selected_window, theme_options, App, CursorStyle, FocusPane, LeaderMode, ThemeSwatchStyle,
+        ViewMode,
+    },
     markdown::{render_editor_line, render_preview_document},
     theme::Theme,
 };
@@ -557,6 +560,29 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     frame.render_widget(p, area);
 }
 
+fn theme_swatch_spans<'a>(app: &App, preview_theme: &Theme) -> Vec<Span<'a>> {
+    let glyph = match app.theme_swatch_style {
+        ThemeSwatchStyle::Off => return Vec::new(),
+        ThemeSwatchStyle::Circle => "●",
+        ThemeSwatchStyle::Square => "■",
+    };
+    let gap = " ".repeat(app.theme_swatch_spacing.min(8));
+    let colors = [
+        preview_theme.heading1,
+        preview_theme.info,
+        preview_theme.warn,
+    ];
+    let mut spans = Vec::new();
+    for (idx, color) in colors.into_iter().enumerate() {
+        if idx > 0 && !gap.is_empty() {
+            spans.push(Span::raw(gap.clone()));
+        }
+        spans.push(Span::styled(glyph.to_string(), Style::default().fg(color)));
+    }
+    spans.push(Span::raw(" "));
+    spans
+}
+
 fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let options = theme_options();
     let reserved_rows = if app.boxed_chrome { 8 } else { 9 };
@@ -607,16 +633,10 @@ fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect
         } else {
             Style::default().fg(theme.text)
         };
-        lines.push(Line::from(vec![
-            Span::styled(format!("{marker} "), style),
-            Span::styled("●", Style::default().fg(preview_theme.heading1)),
-            Span::raw(" "),
-            Span::styled("●", Style::default().fg(preview_theme.info)),
-            Span::raw(" "),
-            Span::styled("●", Style::default().fg(preview_theme.warn)),
-            Span::raw(" "),
-            Span::styled(format!("{name}{current_marker}"), style),
-        ]));
+        let mut row = vec![Span::styled(format!("{marker} "), style)];
+        row.extend(theme_swatch_spans(app, &preview_theme));
+        row.push(Span::styled(format!("{name}{current_marker}"), style));
+        lines.push(Line::from(row));
     }
     if window.end < options.len() {
         lines.push(Line::from(Span::styled(
