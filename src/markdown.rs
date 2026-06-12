@@ -281,7 +281,7 @@ pub fn render_preview_document(
             };
             rendered.push(Line::from(Span::styled(
                 underline_char.to_string().repeat(underline_len),
-                Style::default().fg(theme.heading_marker),
+                Style::default().fg(heading_color(level, theme)),
             )));
         } else {
             rendered.push(render_preview_line(raw, theme));
@@ -297,28 +297,25 @@ pub fn render_preview_document(
 
 pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
     if let Some((level, title)) = heading(raw) {
-        let color = match level {
-            1 => theme.heading1,
-            2 => theme.heading2,
-            3 => theme.heading3,
-            4 => theme.heading4,
-            5 => theme.heading5,
-            _ => theme.heading6,
+        let color = heading_color(level, theme);
+        let prefix = if level <= 2 { "" } else { "› " };
+        let title_text = if level == 1 {
+            title.to_uppercase()
+        } else {
+            title.to_string()
         };
-        let prefix = match level {
-            1 => "▌ ",
-            2 => "▸ ",
-            3 => "› ",
-            _ => "  ",
+        let mut spans = if prefix.is_empty() {
+            Vec::new()
+        } else {
+            vec![Span::styled(
+                prefix,
+                Style::default()
+                    .fg(theme.heading_marker)
+                    .add_modifier(Modifier::BOLD),
+            )]
         };
-        let mut spans = vec![Span::styled(
-            prefix,
-            Style::default()
-                .fg(theme.heading_marker)
-                .add_modifier(Modifier::BOLD),
-        )];
         spans.extend(render_inline_spans(
-            title,
+            &title_text,
             theme,
             Style::default().fg(color).add_modifier(Modifier::BOLD),
         ));
@@ -382,6 +379,17 @@ pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
 
 pub fn render_editor_line(raw: &str, theme: &Theme) -> Line<'static> {
     render_preview_line(raw, theme)
+}
+
+fn heading_color(level: u8, theme: &Theme) -> ratatui::style::Color {
+    match level {
+        1 => theme.heading1,
+        2 => theme.heading2,
+        3 => theme.heading3,
+        4 => theme.heading4,
+        5 => theme.heading5,
+        _ => theme.heading6,
+    }
 }
 
 fn render_inline(raw: &str, theme: &Theme) -> Line<'static> {
@@ -684,7 +692,7 @@ mod tests {
                     .collect()
             })
             .collect();
-        assert!(plain.iter().any(|line| line.contains("▌ Title")));
+        assert!(plain.iter().any(|line| line.contains("TITLE")));
         assert!(plain.iter().any(|line| line.contains("━━━━")));
         assert!(plain.iter().any(|line| line.contains("• item")));
         assert!(!plain.iter().any(|line| line.starts_with("# Title")));

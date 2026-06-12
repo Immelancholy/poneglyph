@@ -68,6 +68,11 @@ fn draw_header(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
         Span::styled(format!("theme:{}", app.theme_name), theme.dim()),
         Span::styled("  ", Style::default()),
         cursor_badge(app, theme),
+        Span::styled("  ", Style::default()),
+        Span::styled(
+            if app.boxed_chrome { "boxed" } else { "smooth" },
+            theme.dim(),
+        ),
     ])];
     lines.push(header_action_line(app, theme));
     if area.height > 2 {
@@ -152,6 +157,8 @@ fn header_action_line<'a>(app: &App, theme: &Theme) -> Line<'a> {
                 Span::raw(" Collapse  "),
                 Span::styled(" t ", theme.badge(theme.image)),
                 Span::raw(" Themes  "),
+                Span::styled(" b ", theme.badge(theme.accent)),
+                Span::raw(" Borders  "),
                 Span::styled(" c ", theme.badge(theme.info)),
                 Span::raw(" Cursor  "),
                 Span::styled(" Esc/q ", theme.badge(theme.text_muted)),
@@ -244,29 +251,35 @@ fn draw_preview(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let lines: Vec<Line> = render_preview_document(
         &app.content,
         app.preview_scroll,
-        area.height.saturating_sub(2) as usize,
-        area.width.saturating_sub(4) as usize,
+        area.height
+            .saturating_sub(if app.boxed_chrome { 2 } else { 0 }) as usize,
+        area.width
+            .saturating_sub(if app.boxed_chrome { 4 } else { 1 }) as usize,
         theme,
     );
     let max_scroll = app.max_preview_scroll().max(1);
     let percent = ((app.preview_scroll * 100) / max_scroll).min(100);
-    let p = Paragraph::new(lines)
-        .block(
+    let mut p = Paragraph::new(lines)
+        .style(theme.base())
+        .wrap(Wrap { trim: false });
+    if app.boxed_chrome {
+        p = p.block(
             Block::default()
                 .title(format!(" Preview · {}% ", percent))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
                 .border_style(Style::default().fg(theme.border_strong)),
-        )
-        .style(theme.base())
-        .wrap(Wrap { trim: false });
+        );
+    }
     frame.render_widget(p, area);
 }
 
 fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let all = app.lines();
-    let visible_h = area.height.saturating_sub(2) as usize;
+    let visible_h = area
+        .height
+        .saturating_sub(if app.boxed_chrome { 2 } else { 0 }) as usize;
     let start = app.scroll.min(all.len().saturating_sub(1));
     let number_w = all.len().to_string().len().max(3);
     let mut lines = Vec::new();
@@ -302,8 +315,9 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
         }
     }
     let visible_end = (start + visible_h).min(all.len());
-    let p = Paragraph::new(lines)
-        .block(
+    let mut p = Paragraph::new(lines).style(theme.base());
+    if app.boxed_chrome {
+        p = p.block(
             Block::default()
                 .title(format!(
                     " Editor · lines {}-{} / {} ",
@@ -315,8 +329,8 @@ fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
                 .border_style(Style::default().fg(theme.border_strong)),
-        )
-        .style(theme.base());
+        );
+    }
     frame.render_widget(p, area);
 }
 
@@ -450,17 +464,32 @@ fn draw_outline(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
             )));
         }
     }
-    let p = Paragraph::new(items)
-        .block(
+    if !app.boxed_chrome {
+        items.insert(
+            0,
+            Line::from(Span::styled(
+                "Outline",
+                Style::default().fg(theme.info).add_modifier(Modifier::BOLD),
+            )),
+        );
+        items.insert(
+            1,
+            Line::from(Span::styled("─".repeat(area.width as usize), theme.dim())),
+        );
+    }
+    let mut p = Paragraph::new(items)
+        .style(theme.panel())
+        .wrap(Wrap { trim: false });
+    if app.boxed_chrome {
+        p = p.block(
             Block::default()
                 .title(" Outline (Ctrl+X f for files) ")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
                 .border_style(Style::default().fg(theme.border_strong)),
-        )
-        .style(theme.panel())
-        .wrap(Wrap { trim: false });
+        );
+    }
     frame.render_widget(p, area);
 }
 
@@ -498,16 +527,23 @@ fn draw_theme_picker(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect
         Line::from(Span::styled("Enter apply", theme.dim())),
         Line::from(Span::styled("Esc cancel", theme.dim())),
     ]);
-    let p = Paragraph::new(lines)
-        .block(
+    if !app.boxed_chrome {
+        lines.insert(
+            1,
+            Line::from(Span::styled("─".repeat(area.width as usize), theme.dim())),
+        );
+    }
+    let mut p = Paragraph::new(lines).style(theme.panel());
+    if app.boxed_chrome {
+        p = p.block(
             Block::default()
                 .title(" Theme Selector ")
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
                 .border_style(Style::default().fg(theme.image)),
-        )
-        .style(theme.panel());
+        );
+    }
     frame.render_widget(p, area);
 }
 
@@ -560,8 +596,9 @@ fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
             theme.dim(),
         ))));
     }
-    let list = List::new(items)
-        .block(
+    let mut list = List::new(items).style(theme.panel());
+    if app.boxed_chrome {
+        list = list.block(
             Block::default()
                 .title(format!(
                     " Files: {} ",
@@ -574,8 +611,8 @@ fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .border_type(BorderType::Rounded)
                 .padding(Padding::horizontal(1))
                 .border_style(Style::default().fg(theme.border_strong)),
-        )
-        .style(theme.panel());
+        );
+    }
     frame.render_widget(list, area);
 }
 

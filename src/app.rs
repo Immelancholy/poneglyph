@@ -87,6 +87,7 @@ pub struct App {
     pub theme_name: String,
     pub theme: Theme,
     pub cursor_style: CursorStyle,
+    pub boxed_chrome: bool,
     pub status: String,
     pub should_quit: bool,
     pub file_browser_cwd: PathBuf,
@@ -120,6 +121,7 @@ impl App {
             theme_name: "slate".into(),
             theme: Theme::slate(),
             cursor_style: CursorStyle::Block,
+            boxed_chrome: true,
             status: "Markdown viewer: Ctrl+E edit, Ctrl+V view, Ctrl+F files".into(),
             should_quit: false,
             file_browser_cwd: cwd,
@@ -453,7 +455,8 @@ impl App {
             LeaderMode::View => {
                 self.mode = ViewMode::Preview;
                 self.focus = FocusPane::Editor;
-                self.status = "View mode: o outline, r collapse, t themes, c cursor".into();
+                self.status =
+                    "View mode: o outline, r collapse, t themes, c cursor, b borders".into();
             }
             LeaderMode::Files => {
                 self.sidebar_visible = true;
@@ -522,6 +525,16 @@ impl App {
         self.theme = Theme::named(&name);
         self.theme_picker_mode = true;
         self.status = format!("Theme preview -> {name}");
+    }
+
+    pub fn toggle_boxed_chrome(&mut self) {
+        self.boxed_chrome = !self.boxed_chrome;
+        self.status = if self.boxed_chrome {
+            "Chrome: boxed panels"
+        } else {
+            "Chrome: smooth document"
+        }
+        .into();
     }
 
     pub fn cycle_cursor_style(&mut self) {

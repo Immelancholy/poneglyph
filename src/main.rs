@@ -365,6 +365,10 @@ fn handle_active_leader_key(app: &mut App, key: KeyEvent) -> Result<()> {
                 app.start_theme_picker();
                 app.active_leader_mode = None;
             }
+            KeyCode::Char('b') => {
+                app.toggle_boxed_chrome();
+                app.active_leader_mode = None;
+            }
             KeyCode::Char('c') => {
                 app.cycle_cursor_style();
                 app.active_leader_mode = None;
@@ -531,6 +535,15 @@ mod input_tests {
         assert_ne!(app.theme_name, "slate");
         assert!(app.theme_picker_mode);
         assert!(app.status.starts_with("Theme preview -> "));
+    }
+
+    #[test]
+    fn view_mode_border_command_toggles_boxed_chrome() {
+        let mut app = App::new(None).unwrap();
+        assert!(app.boxed_chrome);
+        replay(&mut app, &["ctrl+v", "b"]);
+        assert!(!app.boxed_chrome);
+        assert_eq!(app.active_leader_mode, None);
     }
 
     #[test]
