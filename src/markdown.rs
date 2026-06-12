@@ -230,6 +230,15 @@ pub fn render_preview_document(
     let mut in_code = false;
     let mut rendered = Vec::new();
     for raw in content.split('\n') {
+        if let Some((level, _)) = heading(raw) {
+            if level <= 2
+                && rendered
+                    .last()
+                    .is_some_and(|line: &Line| !plain_line(line).trim().is_empty())
+            {
+                rendered.push(Line::from(""));
+            }
+        }
         if raw.starts_with("```") {
             if in_code {
                 in_code = false;
@@ -283,6 +292,9 @@ pub fn render_preview_document(
                 underline_char.to_string().repeat(underline_len),
                 Style::default().fg(heading_color(level, theme)),
             )));
+            if level <= 2 {
+                rendered.push(Line::from(""));
+            }
         } else {
             rendered.push(render_preview_line(raw, theme));
         }
@@ -401,12 +413,15 @@ fn render_inline(raw: &str, theme: &Theme) -> Line<'static> {
     }
 }
 
-fn wrap_styled_line(line: Line<'static>, width: usize) -> Vec<Line<'static>> {
-    let plain = line
-        .spans
+fn plain_line(line: &Line<'_>) -> String {
+    line.spans
         .iter()
         .map(|span| span.content.as_ref())
-        .collect::<String>();
+        .collect()
+}
+
+fn wrap_styled_line(line: Line<'static>, width: usize) -> Vec<Line<'static>> {
+    let plain = plain_line(&line);
     if plain.width() <= width || plain.is_empty() {
         return vec![line];
     }
@@ -695,6 +710,7 @@ mod tests {
         assert!(plain.iter().any(|line| line.contains("TITLE")));
         assert!(plain.iter().any(|line| line.contains("━━━━")));
         assert!(plain.iter().any(|line| line.contains("• item")));
+        assert!(plain.iter().filter(|line| line.is_empty()).count() >= 2);
         assert!(!plain.iter().any(|line| line.starts_with("# Title")));
     }
 

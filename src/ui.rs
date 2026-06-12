@@ -217,12 +217,26 @@ fn draw_body(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .max(5)
                 .min(area.height.saturating_sub(3))
         };
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(1), Constraint::Length(side_h)])
-            .split(area);
-        draw_main(frame, app, theme, chunks[0]);
-        draw_sidebar(frame, app, theme, chunks[1]);
+        if app.boxed_chrome {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(1), Constraint::Length(side_h)])
+                .split(area);
+            draw_main(frame, app, theme, chunks[0]);
+            draw_sidebar(frame, app, theme, chunks[1]);
+        } else {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(1),
+                    Constraint::Length(1),
+                    Constraint::Length(side_h),
+                ])
+                .split(area);
+            draw_main(frame, app, theme, chunks[0]);
+            draw_horizontal_separator(frame, theme, chunks[1]);
+            draw_sidebar(frame, app, theme, chunks[2]);
+        }
     } else {
         let side_w = if app.sidebar_collapsed {
             SIDEBAR_COLLAPSED_W
@@ -231,13 +245,46 @@ fn draw_body(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .max(28)
                 .min(area.width.saturating_sub(20))
         };
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(1), Constraint::Length(side_w)])
-            .split(area);
-        draw_main(frame, app, theme, chunks[0]);
-        draw_sidebar(frame, app, theme, chunks[1]);
+        if app.boxed_chrome {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Min(1), Constraint::Length(side_w)])
+                .split(area);
+            draw_main(frame, app, theme, chunks[0]);
+            draw_sidebar(frame, app, theme, chunks[1]);
+        } else {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Min(1),
+                    Constraint::Length(1),
+                    Constraint::Length(side_w),
+                ])
+                .split(area);
+            draw_main(frame, app, theme, chunks[0]);
+            draw_vertical_separator(frame, theme, chunks[1]);
+            draw_sidebar(frame, app, theme, chunks[2]);
+        }
     }
+}
+
+fn draw_vertical_separator(frame: &mut Frame<'_>, theme: &Theme, area: Rect) {
+    let rows = vec![
+        Line::from(Span::styled("│", Style::default().fg(theme.border)));
+        area.height as usize
+    ];
+    frame.render_widget(Paragraph::new(rows).style(theme.base()), area);
+}
+
+fn draw_horizontal_separator(frame: &mut Frame<'_>, theme: &Theme, area: Rect) {
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            "─".repeat(area.width as usize),
+            Style::default().fg(theme.border),
+        )))
+        .style(theme.base()),
+        area,
+    );
 }
 
 fn draw_main(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
@@ -248,12 +295,15 @@ fn draw_main(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
 }
 
 fn draw_preview(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
+    let render_area = smooth_content_area(app, area);
     let lines: Vec<Line> = render_preview_document(
         &app.content,
         app.preview_scroll,
-        area.height
+        render_area
+            .height
             .saturating_sub(if app.boxed_chrome { 2 } else { 0 }) as usize,
-        area.width
+        render_area
+            .width
             .saturating_sub(if app.boxed_chrome { 4 } else { 1 }) as usize,
         theme,
     );
@@ -272,10 +322,24 @@ fn draw_preview(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                 .border_style(Style::default().fg(theme.border_strong)),
         );
     }
-    frame.render_widget(p, area);
+    frame.render_widget(p, render_area);
+}
+
+fn smooth_content_area(app: &App, area: Rect) -> Rect {
+    if app.boxed_chrome || area.width < 6 {
+        area
+    } else {
+        Rect {
+            x: area.x.saturating_add(2),
+            y: area.y,
+            width: area.width.saturating_sub(3),
+            height: area.height,
+        }
+    }
 }
 
 fn draw_editor(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
+    let area = smooth_content_area(app, area);
     let all = app.lines();
     let visible_h = area
         .height
