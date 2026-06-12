@@ -74,7 +74,10 @@ enum Command {
         collapsed: bool,
     },
     /// Print Rust theme tokens in the Bun md-editor token schema
-    ThemeTokens,
+    ThemeTokens {
+        #[arg(long, default_value = "slate")]
+        theme: String,
+    },
     /// Print effective config preferences JSON
     Config,
     /// Replay comma-separated key names and print final state JSON
@@ -157,10 +160,10 @@ fn main() -> Result<()> {
             );
             return Ok(());
         }
-        Some(Command::ThemeTokens) => {
+        Some(Command::ThemeTokens { theme }) => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&Theme::slate().tokens())?
+                serde_json::to_string_pretty(&Theme::named(&theme).tokens())?
             );
             return Ok(());
         }

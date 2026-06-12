@@ -405,11 +405,15 @@ pub fn render_preview_document(
                 rendered.push(Line::from(vec![
                     Span::styled(
                         "╰─ ",
-                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                        Style::default()
+                            .fg(theme.code_block_border)
+                            .bg(theme.code_bg),
                     ),
                     Span::styled(
                         raw.to_string(),
-                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                        Style::default()
+                            .fg(theme.code_block_border)
+                            .bg(theme.code_bg),
                     ),
                 ]));
             } else {
@@ -423,12 +427,14 @@ pub fn render_preview_document(
                 rendered.push(Line::from(vec![
                     Span::styled(
                         "╭─ ",
-                        Style::default().fg(theme.heading_marker).bg(theme.code_bg),
+                        Style::default()
+                            .fg(theme.code_block_border)
+                            .bg(theme.code_bg),
                     ),
                     Span::styled(
                         label.to_string(),
                         Style::default()
-                            .fg(theme.code)
+                            .fg(theme.code_block_lang)
                             .bg(theme.code_bg)
                             .add_modifier(Modifier::BOLD),
                     ),
@@ -532,7 +538,7 @@ pub fn render_preview_line(raw: &str, theme: &Theme) -> Line<'static> {
             };
             format!("{}{glyph} ", " ".repeat(list.indent))
         };
-        let mut spans = vec![Span::styled(marker, Style::default().fg(theme.warn))];
+        let mut spans = vec![Span::styled(marker, Style::default().fg(theme.list_marker))];
         spans.extend(render_inline_spans(
             list.content,
             theme,
@@ -648,15 +654,21 @@ fn render_inline_spans(raw: &str, theme: &Theme, default_style: Style) -> Vec<Sp
         .map(|seg| match seg.kind {
             InlineKind::Text => Span::styled(seg.text, default_style),
             InlineKind::Image => Span::styled(
-                format!("![{}]", seg.text),
+                format!("󰥶 {}", seg.text),
                 Style::default()
                     .fg(theme.image)
                     .add_modifier(Modifier::ITALIC),
             ),
-            InlineKind::Link | InlineKind::Autolink => Span::styled(
+            InlineKind::Link => Span::styled(
+                format!("{} ↗", seg.text),
+                Style::default()
+                    .fg(theme.link_text)
+                    .add_modifier(Modifier::UNDERLINED),
+            ),
+            InlineKind::Autolink => Span::styled(
                 seg.text,
                 Style::default()
-                    .fg(theme.link)
+                    .fg(theme.link_url)
                     .add_modifier(Modifier::UNDERLINED),
             ),
             InlineKind::Code => {

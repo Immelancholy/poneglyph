@@ -114,8 +114,13 @@ pub struct Theme {
     pub code_bg: Color,
     pub quote: Color,
     pub quote_marker: Color,
+    pub list_marker: Color,
     pub link: Color,
+    pub link_text: Color,
+    pub link_url: Color,
     pub image: Color,
+    pub code_block_border: Color,
+    pub code_block_lang: Color,
     pub strikethrough: Color,
     pub hr: Color,
 }
@@ -175,6 +180,8 @@ impl Theme {
         self.text_muted = readable_muted_on(self.text_muted, self.panel, self.text);
         self.text_muted = readable_muted_on(self.text_muted, self.panel_elevated, self.text);
         self.link = readable_on(self.link, self.bg);
+        self.link_text = readable_on(self.link_text, self.bg);
+        self.link_url = readable_muted_on(self.link_url, self.bg, self.text);
         self.quote = readable_muted_on(self.quote, self.bg, self.text);
     }
 
@@ -199,18 +206,21 @@ impl Theme {
             ("syntax", "heading4") => self.heading4 = color,
             ("syntax", "heading5") => self.heading5 = color,
             ("syntax", "heading6") => self.heading6 = color,
-            ("syntax", "headingMarker" | "marker" | "codeBlockBorder") => {
-                self.heading_marker = color
-            }
+            ("syntax", "headingMarker" | "marker") => self.heading_marker = color,
+            ("syntax", "codeBlockBorder") => self.code_block_border = color,
             ("syntax", "bold") => self.bold = color,
             ("syntax", "italic") => self.italic = color,
             ("syntax", "boldItalic") => self.bold_italic = color,
-            ("syntax", "code" | "codeBlockLang") => self.code = color,
+            ("syntax", "code") => self.code = color,
+            ("syntax", "codeBlockLang") => self.code_block_lang = color,
             ("syntax", "codeBg") => self.code_bg = color,
             ("syntax", "strikethrough") => self.strikethrough = color,
+            ("syntax", "listMarker") => self.list_marker = color,
             ("syntax", "blockquote") => self.quote = color,
             ("syntax", "blockquoteMarker") => self.quote_marker = color,
             ("syntax", "link") => self.link = color,
+            ("syntax", "linkText") => self.link_text = color,
+            ("syntax", "linkUrl") => self.link_url = color,
             ("syntax", "image") => self.image = color,
             ("syntax", "horizontalRule") => self.hr = color,
             _ => {}
@@ -246,8 +256,13 @@ impl Theme {
             code_bg: Color::Rgb(0x2d, 0x2d, 0x2d),
             quote: Color::Rgb(0x6a, 0x99, 0x55),
             quote_marker: Color::Rgb(0x80, 0x80, 0x80),
+            list_marker: Color::Rgb(0xce, 0x91, 0x78),
             link: Color::Rgb(0x4f, 0xc1, 0xff),
+            link_text: Color::Rgb(0x9c, 0xdc, 0xfe),
+            link_url: Color::Rgb(0xce, 0x91, 0x78),
             image: Color::Rgb(0xc5, 0x86, 0xc0),
+            code_block_border: Color::Rgb(0x80, 0x80, 0x80),
+            code_block_lang: Color::Rgb(0xdc, 0xdc, 0xaa),
             strikethrough: Color::Rgb(0x6a, 0x99, 0x55),
             hr: Color::Rgb(0x3a, 0x47, 0x59),
         }
@@ -282,8 +297,13 @@ impl Theme {
             code_bg: Color::Rgb(0x31, 0x20, 0x1a),
             quote: Color::Rgb(0xd7, 0xa8, 0x6e),
             quote_marker: Color::Rgb(0xff, 0x7a, 0x45),
+            list_marker: Color::Rgb(0xff, 0xc8, 0x57),
             link: Color::Rgb(0xff, 0x9f, 0x68),
+            link_text: Color::Rgb(0xf4, 0xdd, 0xc8),
+            link_url: Color::Rgb(0xff, 0xc8, 0x57),
             image: Color::Rgb(0xff, 0x7a, 0x90),
+            code_block_border: Color::Rgb(0xa8, 0x5f, 0x3d),
+            code_block_lang: Color::Rgb(0xff, 0xdf, 0x9e),
             strikethrough: Color::Rgb(0xb8, 0x94, 0x7d),
             hr: Color::Rgb(0x74, 0x49, 0x36),
         }
@@ -328,15 +348,15 @@ impl Theme {
                 code: color_hex(self.code),
                 code_bg: color_hex(self.code_bg),
                 strikethrough: color_hex(self.strikethrough),
-                list_marker: color_hex(self.warn),
+                list_marker: color_hex(self.list_marker),
                 blockquote: color_hex(self.quote),
                 blockquote_marker: color_hex(self.quote_marker),
                 link: color_hex(self.link),
-                link_text: color_hex(self.heading4),
-                link_url: color_hex(self.heading5),
+                link_text: color_hex(self.link_text),
+                link_url: color_hex(self.link_url),
                 image: color_hex(self.image),
-                code_block_border: color_hex(self.heading_marker),
-                code_block_lang: color_hex(self.code),
+                code_block_border: color_hex(self.code_block_border),
+                code_block_lang: color_hex(self.code_block_lang),
                 horizontal_rule: color_hex(self.hr),
                 marker: color_hex(self.heading_marker),
             },
@@ -459,6 +479,17 @@ mod tests {
         let theme = Theme::from_theme_toml(raw);
         assert_ne!(color_hex(theme.text_muted), "#6272a4");
         assert_eq!(color_hex(theme.link), "#8be9fd");
+    }
+
+    #[test]
+    fn maps_richer_syntax_tokens_independently() {
+        let raw = "[syntax]\nlistMarker = \"#e0af68\"\nlinkText = \"#9cdcfe\"\nlinkUrl = \"#ce9178\"\ncodeBlockBorder = \"#808080\"\ncodeBlockLang = \"#dcdcaa\"\n";
+        let theme = Theme::from_theme_toml(raw);
+        assert_eq!(color_hex(theme.list_marker), "#e0af68");
+        assert_eq!(color_hex(theme.link_text), "#9cdcfe");
+        assert_eq!(color_hex(theme.link_url), "#ce9178");
+        assert_eq!(color_hex(theme.code_block_border), "#808080");
+        assert_eq!(color_hex(theme.code_block_lang), "#dcdcaa");
     }
 
     #[test]
