@@ -22,8 +22,8 @@ use theme::Theme;
 
 #[derive(Parser)]
 #[command(
-    name = "md-editor-rust",
-    about = "Rust/Ratatui parity port spike of md-editor"
+    name = "poneglyph",
+    about = "A tiny, beautiful terminal markdown editor"
 )]
 struct Cli {
     #[arg(value_name = "FILE")]
@@ -577,10 +577,7 @@ mod input_tests {
     #[test]
     fn ctrl_s_saves_from_edit_mode() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!(
-            "md-editor-rust-save-test-{}.md",
-            std::process::id()
-        ));
+        let path = dir.join(format!("poneglyph-save-test-{}.md", std::process::id()));
         std::fs::write(&path, "abc").unwrap();
         let mut app = App::new(Some(path.clone())).unwrap();
         replay(&mut app, &["ctrl+e", "Z", "ctrl+s"]);

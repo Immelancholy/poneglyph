@@ -154,7 +154,10 @@ impl ThemeSwatchStyle {
 impl App {
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         let cwd = std::env::current_dir()?;
-        let config = if cfg!(test) && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none() {
+        let config = if cfg!(test)
+            && std::env::var_os("PONEGLYPH_CONFIG").is_none()
+            && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none()
+        {
             AppConfig::default()
         } else {
             AppConfig::load()
@@ -646,7 +649,10 @@ impl App {
     }
 
     fn persist_preferences(&mut self) {
-        if cfg!(test) && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none() {
+        if cfg!(test)
+            && std::env::var_os("PONEGLYPH_CONFIG").is_none()
+            && std::env::var_os("MD_EDITOR_RUST_CONFIG").is_none()
+        {
             return;
         }
         let cfg = AppConfig {
@@ -751,13 +757,14 @@ pub fn theme_dirs() -> Vec<PathBuf> {
         dirs.push(cwd.join("../md-editor/themes"));
     }
     if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(PathBuf::from(&home).join(".config/poneglyph/themes"));
         dirs.push(PathBuf::from(home).join(".config/md-editor/themes"));
     }
     dirs
 }
 
 fn default_content() -> String {
-    "# Welcome to md-editor-rust\n\nA Rust/Ratatui parity port of md-editor.\n\n## Getting Started\n\n- Starts in preview mode\n- Ctrl+X then e to edit\n- Ctrl+X then p for preview\n- Ctrl+X then f for files\n- Ctrl+X then h for help".into()
+    "# Welcome to poneglyph\n\nA tiny, beautiful terminal markdown editor for ancient texts and modern notes.\n\n## Getting Started\n\n- Starts in preview mode\n- Ctrl+E to edit\n- Ctrl+V for view commands\n- Ctrl+F for files\n- Ctrl+Q to quit".into()
 }
 
 pub fn selected_window(total: usize, selected: usize, height: usize) -> Range<usize> {
@@ -866,10 +873,8 @@ mod tests {
 
     #[test]
     fn file_browser_restores_selection_per_directory() {
-        let root = std::env::temp_dir().join(format!(
-            "md-editor-rust-file-selection-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("poneglyph-file-selection-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("a_dir")).unwrap();
         fs::create_dir_all(root.join("b_dir")).unwrap();

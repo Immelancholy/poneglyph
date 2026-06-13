@@ -34,7 +34,7 @@ def rust_kind(raw):
 
 def classify_fixture(path: Path):
     bun = run_json(["bun", "run", str(root / "scripts/bun-oracle.ts"), "classify", str(path)])
-    rust = run_json([str(root / "target/release/md-editor-rust"), "classify", str(path)])
+    rust = run_json([str(root / "target/release/poneglyph"), "classify", str(path)])
     lines = path.read_text().split("\n")
     max_len = max(len(bun), len(rust))
     rows = []
@@ -59,7 +59,7 @@ def classify_fixture(path: Path):
 
 def outline_fixture(path: Path):
     bun = run_json(["bun", "run", str(root / "scripts/bun-oracle.ts"), "outline", str(path)])
-    rust = run_json([str(root / "target/release/md-editor-rust"), "outline", str(path)])
+    rust = run_json([str(root / "target/release/poneglyph"), "outline", str(path)])
     max_len = max(len(bun), len(rust))
     rows = []
     counts = {"match": 0, "diff": 0}

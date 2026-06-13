@@ -1,9 +1,13 @@
 [package]
-name = "md-editor-rust"
+name = "poneglyph"
 version = "0.1.0"
 edition = "2021"
-description = "Rust/Ratatui parity port spike of md-editor"
+description = "A tiny, beautiful terminal markdown editor"
 license = "MIT"
+readme = "README.md"
+documentation = "https://docs.rs/poneglyph"
+keywords = ["markdown", "editor", "tui", "terminal"]
+categories = ["command-line-utilities", "text-editors"]
 
 [dependencies]
 anyhow = "1.0"

@@ -17,7 +17,7 @@ bun = subprocess.check_output([
     "bun", "run", str(root / "scripts/bun-oracle.ts"), "preview-lines", str(file_path), str(args.width), str(args.height)
 ], cwd=root, text=True)
 rust = subprocess.check_output([
-    str(root / "target/release/md-editor-rust"), "preview-lines", str(file_path), "--width", str(args.width), "--height", str(args.height)
+    str(root / "target/release/poneglyph"), "preview-lines", str(file_path), "--width", str(args.width), "--height", str(args.height)
 ], cwd=root, text=True)
 
 bun_lines = json.loads(bun)["lines"]
@@ -48,7 +48,7 @@ html_rows = "\n".join(
     for n, left, right, same in rows
 )
 args.out.write_text(f"""<!doctype html>
-<html><head><meta charset='utf-8'><title>md-editor parity side-by-side</title>
+<html><head><meta charset='utf-8'><title>poneglyph parity side-by-side</title>
 <style>
 body {{ background:#111318; color:#d8dee8; font-family: Inter, system-ui, sans-serif; margin: 24px; }}
 h1 {{ color:#4ec9b0; }}
@@ -61,7 +61,7 @@ pre {{ margin:0; white-space:pre-wrap; font-family:'JetBrains Mono', 'Fira Code'
 .diff {{ background:rgba(206,111,124,.13); }}
 .legend {{ color:#c9a86a; }}
 </style></head><body>
-<h1>Markdown Editor Parity Side-by-Side</h1>
+<h1>poneglyph Parity Side-by-Side</h1>
 <div class='meta'>Fixture: <code>{html.escape(str(file_path))}</code><br>Width: {args.width}, Height: {args.height}, Diff rows: <span class='legend'>{diffs}/{max_len}</span></div>
 <table><thead><tr><th>#</th><th>Bun/OpenTUI oracle</th><th>Rust/Ratatui</th></tr></thead><tbody>
 {html_rows}

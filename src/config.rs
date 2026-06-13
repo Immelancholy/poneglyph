@@ -35,7 +35,7 @@ impl AppConfig {
     }
 
     pub fn to_toml(&self) -> String {
-        let mut out = String::from("# md-editor-rust user preferences\n\n[ui]\n");
+        let mut out = String::from("# poneglyph user preferences\n\n[ui]\n");
         if let Some(theme) = &self.theme {
             out.push_str(&format!("theme = \"{}\"\n", escape_toml_string(theme)));
         }
@@ -65,13 +65,20 @@ impl AppConfig {
 }
 
 pub fn config_path_for_load() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("PONEGLYPH_CONFIG") {
+        return Some(PathBuf::from(path));
+    }
     if let Some(path) = std::env::var_os("MD_EDITOR_RUST_CONFIG") {
         return Some(PathBuf::from(path));
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let local = cwd.join(".md-editor.toml");
+        let local = cwd.join(".poneglyph.toml");
         if local.exists() {
             return Some(local);
+        }
+        let legacy = cwd.join(".md-editor.toml");
+        if legacy.exists() {
+            return Some(legacy);
         }
     }
     let global = config_path_for_save();
@@ -79,20 +86,27 @@ pub fn config_path_for_load() -> Option<PathBuf> {
 }
 
 pub fn config_path_for_save() -> PathBuf {
+    if let Some(path) = std::env::var_os("PONEGLYPH_CONFIG") {
+        return PathBuf::from(path);
+    }
     if let Some(path) = std::env::var_os("MD_EDITOR_RUST_CONFIG") {
         return PathBuf::from(path);
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let local = cwd.join(".md-editor.toml");
+        let local = cwd.join(".poneglyph.toml");
         if local.exists() {
             return local;
+        }
+        let legacy = cwd.join(".md-editor.toml");
+        if legacy.exists() {
+            return legacy;
         }
     }
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("md-editor-rust/config.toml")
+    base.join("poneglyph/config.toml")
 }
 
 pub fn parse_config(raw: &str) -> AppConfig {

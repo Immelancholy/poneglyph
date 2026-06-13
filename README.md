@@ -1,80 +1,134 @@
-# md-editor-rust
+# poneglyph
 
-Rust/Ratatui parity-port spike of the original Bun/OpenTUI/Solid [`md-editor`](../md-editor).
+A tiny, beautiful terminal markdown editor for ancient texts and modern notes.
 
-This is intentionally **not** a simplified rewrite. The goal is to preserve the shape and feel of Markdown Editor while testing whether a Rust/Ratatui architecture can keep the memory profile closer to Fresh.
+`poneglyph` is the Rust/Ratatui successor to the original Bun/OpenTUI/Solid `md-editor`. It keeps the markdown-first TUI workflow, but ships as a tiny native binary with dramatically lower memory use.
 
-## First slice parity
+Current local release build:
 
-Implemented:
+| Artifact | Size / memory |
+| --- | ---: |
+| Release binary | ~924 KB |
+| Runtime peak RSS | ~17 MB |
+| Bun oracle peak RSS | ~97 MB |
 
-- Preview-first startup.
-- `md-editor`-style app shell: header, main pane, outline/files sidebar, footer.
-- CLI file open: `md-editor-rust README.md`.
-- Preview scrolling.
-- Edit mode with cursor movement, insertion, newline, backspace, tab.
-- Save command.
-- Undo/redo (`Ctrl+Z`/`Ctrl+Y` and `Ctrl+X u`/`Ctrl+X y`).
-- Escape exits edit mode back to preview; `Ctrl+Q` quits anywhere.
-- Outline extraction from markdown headings.
-- File browser sidebar for `.md`, `.markdown`, `.mdx`.
-- Help/sidebar collapse commands.
-- Markdown styling for headings, blockquotes, lists, code fences, inline bold/code.
-- JSON oracle commands for tests/fixtures: `outline`, `stats`, `classify`.
-- RSS benchmark comparison against the Bun md-editor oracle.
+## Features
 
-Not implemented yet:
+- Preview-first markdown reading.
+- In-place edit mode.
+- Outline sidebar and file browser.
+- Theme picker with bundled theme loading.
+- Boxed or smooth chrome.
+- Configurable cursor style and theme swatches.
+- Rich preview rendering for headings, blockquotes, nested lists, code blocks, tables, links, and images.
+- Save, undo/redo, Delete/Backspace editing, and file opening.
+- Oracle/debug commands for parity and snapshot testing.
 
-- Mermaid rendering.
-- Theme picker / all bundled themes.
-- Mouse parity.
-- Exact OpenTUI visual details.
-- Advanced markdown preview layout.
+Accepted enhancements over the old Bun app:
+
+- Boxed table rendering instead of raw pipe-table lines.
+- Compact square theme swatches in the theme picker.
+- Richer nested list bullets.
 
 ## Usage
 
 ```bash
 cargo run -- fixtures/small.md
 cargo run --release -- fixtures/large.md
+
+# after release build
+./target/release/poneglyph README.md
 ```
 
-Leader commands:
+Direct mode keys:
 
-- `Ctrl+X e` edit
-- `Ctrl+X p` preview
-- `Ctrl+X f` files
-- `Ctrl+X o` outline
-- `Ctrl+X b` / `Ctrl+X r` collapse sidebar
-- `Ctrl+X h` help
-- `Ctrl+X u` undo
-- `Ctrl+X y` redo
-- `Ctrl+X s` save
-- `Ctrl+X q` quit
+- `Ctrl+E` edit mode
+- `Ctrl+V` view mode
+- `Ctrl+F` files mode
 - `Ctrl+Q` quit anywhere
-- `Esc` exits edit mode to preview
+- `Ctrl+S` save anywhere
+- `Ctrl+Z` / `Ctrl+Y` undo / redo
 
-## Oracle helpers
+View mode commands after `Ctrl+V`:
+
+- `o` outline
+- `r` collapse/expand sidebar
+- `t` theme picker
+- `b` boxed/smooth chrome
+- `c` cursor style
+
+Edit mode:
+
+- Type to insert text.
+- Arrows/Home/End/PageUp/PageDown move.
+- `Enter` newline.
+- `Backspace` delete backward.
+- `Delete` delete forward.
+- `Esc` exits back to preview.
+
+Legacy `Ctrl+X` commands remain available for compatibility.
+
+## Configuration
+
+Default config path:
+
+```text
+~/.config/poneglyph/config.toml
+```
+
+Project-local config is also supported:
+
+```text
+.poneglyph.toml
+```
+
+Example:
+
+```toml
+[ui]
+theme = "tokyo-night"
+cursorStyle = "block"      # brackets | block | bar | underline | box
+boxedChrome = true
+themeSwatches = "square"   # off | circle | square
+themeSwatchSpacing = 0      # 0..8
+```
+
+You can override config path for testing:
+
+```bash
+PONEGLYPH_CONFIG=/tmp/poneglyph.toml poneglyph README.md
+```
+
+## Oracle/debug helpers
 
 ```bash
 cargo run -- outline fixtures/large.md
 cargo run -- stats fixtures/large.md
 cargo run -- classify fixtures/small.md
+cargo run -- preview-lines fixtures/small.md --width 96 --height 32
+cargo run -- sidebar-lines fixtures/small.md --files
+cargo run -- state-after-keys fixtures/small.md 'ctrl+e,right,delete'
+```
+
+Side-by-side parity helpers compare `poneglyph` against the old Bun oracle:
+
+```bash
+./scripts/side-by-side.py fixtures/preview-rich.md --out proofs/side-by-side-preview-rich.html
+./scripts/structural-parity.py fixtures/small.md fixtures/preview-rich.md fixtures/parity-structural.md
 ```
 
 ## Benchmarks
 
-Compare Rust port against the original Bun production build:
+Compare `poneglyph` against the original Bun production oracle:
 
 ```bash
 ./bench/compare.sh fixtures/small.md
 ./bench/compare.sh fixtures/large.md
 ```
 
-Current first-slice measurements on this machine:
+Latest local result:
 
-| Fixture | Rust peak RSS | Bun oracle peak RSS |
-| --- | ---: | ---: |
-| `fixtures/small.md` | 16.54 MB | 97.03 MB |
-| `fixtures/large.md` | 16.64 MB | 97.48 MB |
-
-These numbers are a first-pass PTY/process-tree sample, not a rigorous final benchmark, but the direction is already very clear.
+```text
+poneglyph peak RSS: ~17 MB
+Bun oracle peak RSS: ~97 MB
+```

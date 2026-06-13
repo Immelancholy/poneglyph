@@ -8,14 +8,14 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 OUT="$ROOT/bench/results/$STAMP"
 mkdir -p "$OUT"
 
-cargo build --release --manifest-path "$ROOT/Cargo.toml" >/tmp/md-editor-rust-build.log
+cargo build --release --manifest-path "$ROOT/Cargo.toml" >/tmp/poneglyph-build.log
 
-RUST_BIN="$ROOT/target/release/md-editor-rust"
+RUST_BIN="$ROOT/target/release/poneglyph"
 ORACLE_PROD="$ORACLE/dist/tui/tui/main.js"
 ORACLE_PRELOAD="$ORACLE/scripts/preload-solid-client.ts"
 
 {
-  echo "# md-editor Rust vs Bun oracle"
+  echo "# poneglyph vs Bun md-editor oracle"
   echo
   echo "- fixture: $FIXTURE"
   echo "- oracle: $ORACLE"

@@ -394,6 +394,7 @@ fn theme_dirs() -> Vec<PathBuf> {
         dirs.push(cwd.join("../md-editor/themes"));
     }
     if let Some(home) = std::env::var_os("HOME") {
+        dirs.push(PathBuf::from(&home).join(".config/poneglyph/themes"));
         dirs.push(PathBuf::from(home).join(".config/md-editor/themes"));
     }
     dirs

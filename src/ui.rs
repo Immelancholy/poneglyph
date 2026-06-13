@@ -56,7 +56,7 @@ fn draw_header(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
     let mut lines = vec![Line::from(vec![
         Span::styled(format!(" {mode} "), theme.badge(mode_color)),
         Span::raw("  "),
-        Span::styled("Markdown Editor ", Style::default().fg(theme.text_muted)),
+        Span::styled("poneglyph ", Style::default().fg(theme.text_muted)),
         Span::styled("◆ ", Style::default().fg(theme.border_strong)),
         Span::styled(
             title,
