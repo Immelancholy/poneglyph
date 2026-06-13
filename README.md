@@ -4,6 +4,9 @@ A tiny, beautiful terminal markdown editor for ancient texts and modern notes.
 
 `poneglyph` is built for fast markdown reading and editing directly in the terminal: preview-first, themeable, keyboard-driven, and small enough to disappear into your workflow.
 
+<img width="1023" height="1190" alt="image" src="https://github.com/user-attachments/assets/c3ae878d-383c-449e-b9d3-92489d438060" />
+
+
 Current local release build:
 
 | Artifact | Size / memory |
