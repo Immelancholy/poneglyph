@@ -698,7 +698,9 @@ fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
             .take(window.len())
             .map(|(i, e)| {
                 let selected = i == app.selected_file;
+                let current = app.file_path.as_ref().is_some_and(|path| path == &e.path);
                 let marker = if selected { "›" } else { " " };
+                let current_marker = if current { " ●" } else { "" };
                 let icon = if e.name == "../" {
                     "↰"
                 } else if e.is_dir {
@@ -711,15 +713,19 @@ fn draw_files(frame: &mut Frame<'_>, app: &App, theme: &Theme, area: Rect) {
                         .fg(theme.bg)
                         .bg(theme.accent)
                         .add_modifier(Modifier::BOLD)
+                } else if current {
+                    Style::default()
+                        .fg(theme.success)
+                        .add_modifier(Modifier::BOLD)
                 } else if e.is_dir {
                     Style::default().fg(theme.info)
                 } else {
                     Style::default().fg(theme.text)
                 };
-                ListItem::new(Line::from(Span::styled(
-                    format!("{marker} {icon} {}", e.name),
-                    style,
-                )))
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!("{marker} {icon} {}", e.name), style),
+                    Span::styled(current_marker, Style::default().fg(theme.success)),
+                ]))
             }),
     );
     if window.end < entries.len() {
@@ -780,7 +786,7 @@ fn draw_help(frame: &mut Frame<'_>, theme: &Theme, area: Rect) {
         Line::from("Ctrl+Q      Quit from anywhere"),
         Line::from(""),
         Line::from("Preview: ↑/↓ scroll"),
-        Line::from("Edit: arrows/Home/End/Page move, type, Enter, Backspace"),
+        Line::from("Edit: arrows/Home/End/Page move, type, Enter, Backspace/Delete"),
         Line::from("Outline: ↑/↓ select, Enter jump, Esc editor"),
         Line::from("Files: ↑/↓ select, Enter open, Esc editor"),
     ];

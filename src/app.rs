@@ -453,6 +453,30 @@ impl App {
         self.modified = true;
     }
 
+    pub fn delete_forward(&mut self) {
+        let mut lines: Vec<String> = self.lines().into_iter().map(str::to_string).collect();
+        if lines.is_empty() {
+            return;
+        }
+        let idx = self.cursor_line.min(lines.len() - 1);
+        let line_len = lines[idx].chars().count();
+        if self.cursor_col >= line_len && idx + 1 >= lines.len() {
+            self.status = "Delete: end of document".into();
+            return;
+        }
+        self.record_undo();
+        if self.cursor_col < line_len {
+            let byte = byte_index_for_char_col(&lines[idx], self.cursor_col);
+            let next = next_char_boundary(&lines[idx], byte);
+            lines[idx].replace_range(byte..next, "");
+        } else if idx + 1 < lines.len() {
+            let next_line = lines.remove(idx + 1);
+            lines[idx].push_str(&next_line);
+        }
+        self.content = lines.join("\n");
+        self.modified = true;
+    }
+
     pub fn max_preview_scroll(&self) -> usize {
         self.lines().len().saturating_sub(1)
     }
@@ -691,6 +715,13 @@ fn byte_index_for_char_col(s: &str, col: usize) -> usize {
 fn previous_char_boundary(s: &str, byte: usize) -> usize {
     s[..byte].char_indices().last().map(|(i, _)| i).unwrap_or(0)
 }
+fn next_char_boundary(s: &str, byte: usize) -> usize {
+    s[byte..]
+        .char_indices()
+        .nth(1)
+        .map(|(i, _)| byte + i)
+        .unwrap_or(s.len())
+}
 
 pub fn theme_options() -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
@@ -773,6 +804,20 @@ mod tests {
         assert_eq!(app.content, "abc");
         app.newline();
         assert_eq!(app.content, "a\nbc");
+    }
+
+    #[test]
+    fn delete_forward_removes_char_or_joins_next_line() {
+        let mut app = App::new(None).unwrap();
+        app.content = "abc".into();
+        app.cursor_col = 1;
+        app.delete_forward();
+        assert_eq!(app.content, "ac");
+        app.content = "a\nb".into();
+        app.cursor_line = 0;
+        app.cursor_col = 1;
+        app.delete_forward();
+        assert_eq!(app.content, "ab");
     }
     #[test]
     fn stats_match_expected() {

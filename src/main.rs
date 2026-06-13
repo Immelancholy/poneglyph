@@ -232,6 +232,7 @@ fn parse_script_key(raw: &str) -> Result<KeyEvent> {
         "esc" | "escape" => KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
         "enter" | "return" => KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
         "backspace" | "bs" => KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
+        "delete" | "del" => KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE),
         "tab" => KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
         "up" => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
         "down" => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
@@ -434,6 +435,7 @@ fn handle_edit_key(app: &mut App, key: KeyEvent) -> Result<()> {
         }
         KeyCode::Enter => app.newline(),
         KeyCode::Backspace => app.backspace(),
+        KeyCode::Delete => app.delete_forward(),
         KeyCode::Tab => {
             app.insert_char(' ');
             app.insert_char(' ');
@@ -600,6 +602,14 @@ mod input_tests {
         assert_eq!(app.preview_scroll, 4);
         replay(&mut app, &["home"]);
         assert_eq!(app.preview_scroll, 0);
+    }
+
+    #[test]
+    fn edit_delete_key_removes_forward_character() {
+        let mut app = App::new(None).unwrap();
+        app.content = "abc".into();
+        replay(&mut app, &["ctrl+e", "right", "delete"]);
+        assert_eq!(app.content, "ac");
     }
 
     #[test]

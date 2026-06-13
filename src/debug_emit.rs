@@ -163,7 +163,12 @@ pub fn sidebar_lines(app: &App, width: usize, height: usize) -> ViewportDump {
                 .take(window.len())
                 .map(|(i, entry)| {
                     let marker = if i == app.selected_file { "> " } else { "  " };
-                    format!("{marker}{}", entry.name)
+                    let current = app
+                        .file_path
+                        .as_ref()
+                        .is_some_and(|path| path == &entry.path);
+                    let current_marker = if current { " ●" } else { "" };
+                    format!("{marker}{}{current_marker}", entry.name)
                 }),
         );
         if window.end < entries.len() {
