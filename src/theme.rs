@@ -3,6 +3,37 @@ use std::{fs, path::PathBuf};
 use ratatui::style::{Color, Modifier, Style};
 use serde::Serialize;
 
+const EMBEDDED_THEMES: &[(&str, &str)] = &[
+    ("ayu-mirage", include_str!("../themes/ayu-mirage.toml")),
+    ("catppuccin", include_str!("../themes/catppuccin.toml")),
+    ("cyberpunk", include_str!("../themes/cyberpunk.toml")),
+    ("dracula", include_str!("../themes/dracula.toml")),
+    ("ember", include_str!("../themes/ember.toml")),
+    ("everforest", include_str!("../themes/everforest.toml")),
+    ("github-dark", include_str!("../themes/github-dark.toml")),
+    ("gruvbox", include_str!("../themes/gruvbox.toml")),
+    ("kanagawa", include_str!("../themes/kanagawa.toml")),
+    ("monokai", include_str!("../themes/monokai.toml")),
+    ("moss", include_str!("../themes/moss.toml")),
+    ("night-owl", include_str!("../themes/night-owl.toml")),
+    ("nocturne", include_str!("../themes/nocturne.toml")),
+    ("nord", include_str!("../themes/nord.toml")),
+    ("oceanic", include_str!("../themes/oceanic.toml")),
+    ("one-dark", include_str!("../themes/one-dark.toml")),
+    ("palenight", include_str!("../themes/palenight.toml")),
+    ("rose-pine", include_str!("../themes/rose-pine.toml")),
+    (
+        "shades-of-purple",
+        include_str!("../themes/shades-of-purple.toml"),
+    ),
+    ("slate", include_str!("../themes/slate.toml")),
+    ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
+];
+
+pub fn embedded_theme_names() -> impl Iterator<Item = &'static str> {
+    EMBEDDED_THEMES.iter().map(|(name, _)| *name)
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ThemeTokens {
     pub slate: SlateTokens,
@@ -137,6 +168,12 @@ impl Theme {
     }
 
     pub fn from_bundled_toml(name: &str) -> Option<Self> {
+        if let Some((_, raw)) = EMBEDDED_THEMES
+            .iter()
+            .find(|(theme_name, _)| *theme_name == name)
+        {
+            return Some(Self::from_theme_toml(raw));
+        }
         for dir in theme_dirs() {
             let path = dir.join(format!("{name}.toml"));
             if let Ok(raw) = fs::read_to_string(&path) {

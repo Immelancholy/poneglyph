@@ -30,6 +30,18 @@ Accepted enhancements over the old Bun app:
 - Compact square theme swatches in the theme picker.
 - Richer nested list bullets.
 
+## Install
+
+See [docs/install.md](docs/install.md).
+
+From source:
+
+```bash
+git clone https://github.com/ShamanicArts/poneglyph.git
+cd poneglyph
+cargo install --path .
+```
+
 ## Usage
 
 ```bash

@@ -1,0 +1,76 @@
+[slate]
+bg0 = "#16110f"
+bg1 = "#201915"
+bg2 = "#2a211c"
+panel = "#231b17"
+panelElevated = "#2f2520"
+borderSoft = "#4a372f"
+borderStrong = "#65483c"
+text = "#f1ded0"
+textMuted = "#b79f8e"
+
+[semantic]
+success = "#8fca8a"
+warn = "#d7a86d"
+error = "#de7c74"
+info = "#9bb7d9"
+fileAdd = "#57c26c"
+fileMod = "#e7ae52"
+fileDel = "#e16161"
+modeLog = "#c98e63"
+
+
+[syntax]
+heading1 = "#8fca8a"
+heading2 = "#9bb7d9"
+heading3 = "#d7a86d"
+heading4 = "#de7c74"
+heading5 = "#d7a86d"
+heading6 = "#8fca8a"
+headingMarker = "#b79f8e"
+bold = "#d7a86d"
+italic = "#9bb7d9"
+boldItalic = "#de7c74"
+code = "#d7a86d"
+codeBg = "#2a211c"
+strikethrough = "#b79f8e"
+listMarker = "#8fca8a"
+blockquote = "#b79f8e"
+blockquoteMarker = "#b79f8e"
+link = "#9bb7d9"
+linkText = "#bba89c"
+linkUrl = "#d7a86d"
+image = "#de7c74"
+codeBlockBorder = "#b79f8e"
+codeBlockLang = "#9bb7d9"
+horizontalRule = "#4a372f"
+marker = "#b79f8e"
+
+[diff]
+contextBg = "#16110f"
+contextContentBg = "#16110f"
+addedBg = "#2d3d2a"
+removedBg = "#4a2d2a"
+addedContentBg = "#3d5939"
+removedContentBg = "#6a3f39"
+addedSignColor = "#57c26c"
+removedSignColor = "#e16161"
+
+[graph]
+node = "#5a4b43"
+nodeSelected = "#fff4ec"
+nodeConflict = "#ff6e63"
+text = "#bba89c"
+textDesc = "#d8c4b6"
+nodeBorder = "#7a6256"
+canvasTint = "rgba(22, 17, 15, 0.26)"
+lanes = [
+  "#ff9f6a",
+  "#f25d7f",
+  "#7adf9b",
+  "#ffd166",
+  "#c792ea",
+  "#6ec8ff",
+  "#fce38a",
+  "#ff7eb6",
+]

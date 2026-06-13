@@ -1,0 +1,65 @@
+[slate]
+bg0 = "#2e3440"
+bg1 = "#3b4252"
+bg2 = "#434c5e"
+panel = "#2e3440"
+panelElevated = "#4c566a"
+borderSoft = "#434c5e"
+borderStrong = "#4c566a"
+text = "#eceff4"
+textMuted = "#88c0d0"
+
+[semantic]
+success = "#a3be8c"
+warn = "#ebcb8b"
+error = "#bf616a"
+info = "#81a1c1"
+fileAdd = "#a3be8c"
+fileMod = "#ebcb8b"
+fileDel = "#bf616a"
+modeLog = "#81a1c1"
+
+[syntax]
+heading1 = "#b48ead"
+heading2 = "#81a1c1"
+heading3 = "#88c0d0"
+heading4 = "#8fbcbb"
+heading5 = "#a3be8c"
+heading6 = "#ebcb8b"
+headingMarker = "#4c566a"
+bold = "#ebcb8b"
+italic = "#81a1c1"
+boldItalic = "#b48ead"
+code = "#88c0d0"
+codeBg = "#434c5e"
+strikethrough = "#4c566a"
+listMarker = "#a3be8c"
+blockquote = "#81a1c1"
+blockquoteMarker = "#4c566a"
+link = "#81a1c1"
+linkText = "#eceff4"
+linkUrl = "#ebcb8b"
+image = "#b48ead"
+codeBlockBorder = "#4c566a"
+codeBlockLang = "#88c0d0"
+horizontalRule = "#4c566a"
+marker = "#4c566a"
+
+[graph]
+node = "#4c566a"
+nodeSelected = "#b48ead"
+nodeConflict = "#bf616a"
+text = "#88c0d0"
+textDesc = "#eceff4"
+nodeBorder = "#5e81ac"
+canvasTint = "rgba(46, 52, 64, 0.26)"
+lanes = [
+  "#81a1c1",
+  "#5e81ac",
+  "#88c0d0",
+  "#a3be8c",
+  "#ebcb8b",
+  "#d08770",
+  "#b48ead",
+  "#bf616a",
+]

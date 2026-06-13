@@ -13,7 +13,7 @@ use walkdir::WalkDir;
 use crate::{
     config::AppConfig,
     markdown::{outline, OutlineItem},
-    theme::Theme,
+    theme::{embedded_theme_names, Theme},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -731,6 +731,9 @@ fn next_char_boundary(s: &str, byte: usize) -> usize {
 
 pub fn theme_options() -> Vec<String> {
     let mut names = std::collections::BTreeSet::new();
+    for name in embedded_theme_names() {
+        names.insert(name.to_string());
+    }
     names.insert("ember".to_string());
     names.insert("slate".to_string());
     for dir in theme_dirs() {

@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            binary: poneglyph
+            archive: tar.gz
+          - name: macos-aarch64
+            os: macos-latest
+            binary: poneglyph
+            archive: tar.gz
+          - name: windows-x86_64
+            os: windows-latest
+            binary: poneglyph.exe
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package Unix archive
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          mkdir -p dist/poneglyph-${{ matrix.name }}
+          cp target/release/${{ matrix.binary }} dist/poneglyph-${{ matrix.name }}/
+          cp README.md LICENSE dist/poneglyph-${{ matrix.name }}/ 2>/dev/null || cp README.md dist/poneglyph-${{ matrix.name }}/
+          tar -C dist -czf dist/poneglyph-${{ matrix.name }}.tar.gz poneglyph-${{ matrix.name }}
+
+      - name: Package Windows archive
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/poneglyph-${{ matrix.name }}
+          Copy-Item target/release/${{ matrix.binary }} dist/poneglyph-${{ matrix.name }}/
+          Copy-Item README.md dist/poneglyph-${{ matrix.name }}/
+          if (Test-Path LICENSE) { Copy-Item LICENSE dist/poneglyph-${{ matrix.name }}/ }
+          Compress-Archive -Path dist/poneglyph-${{ matrix.name }} -DestinationPath dist/poneglyph-${{ matrix.name }}.zip
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: poneglyph-${{ matrix.name }}
+          path: dist/poneglyph-${{ matrix.name }}.${{ matrix.archive }}
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
