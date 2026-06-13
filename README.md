@@ -2,33 +2,26 @@
 
 A tiny, beautiful terminal markdown editor for ancient texts and modern notes.
 
-`poneglyph` is the Rust/Ratatui successor to the original Bun/OpenTUI/Solid `md-editor`. It keeps the markdown-first TUI workflow, but ships as a tiny native binary with dramatically lower memory use.
+`poneglyph` is built for fast markdown reading and editing directly in the terminal: preview-first, themeable, keyboard-driven, and small enough to disappear into your workflow.
 
 Current local release build:
 
 | Artifact | Size / memory |
 | --- | ---: |
-| Release binary | ~924 KB |
+| Release binary | ~955 KB |
 | Runtime peak RSS | ~17 MB |
-| Bun oracle peak RSS | ~97 MB |
 
 ## Features
 
 - Preview-first markdown reading.
 - In-place edit mode.
 - Outline sidebar and file browser.
-- Theme picker with bundled theme loading.
+- Theme picker with bundled themes.
 - Boxed or smooth chrome.
 - Configurable cursor style and theme swatches.
 - Rich preview rendering for headings, blockquotes, nested lists, code blocks, tables, links, and images.
 - Save, undo/redo, Delete/Backspace editing, and file opening.
-- Oracle/debug commands for parity and snapshot testing.
-
-Accepted enhancements over the old Bun app:
-
-- Boxed table rendering instead of raw pipe-table lines.
-- Compact square theme swatches in the theme picker.
-- Richer nested list bullets.
+- Debug commands for fixtures, snapshots, and automation.
 
 ## Install
 
@@ -42,10 +35,16 @@ cd poneglyph
 cargo install --path .
 ```
 
+Once installed:
+
+```bash
+poneglyph README.md
+```
+
 ## Usage
 
 ```bash
-cargo run -- fixtures/small.md
+cargo run -- README.md
 cargo run --release -- fixtures/large.md
 
 # after release build
@@ -111,7 +110,7 @@ You can override config path for testing:
 PONEGLYPH_CONFIG=/tmp/poneglyph.toml poneglyph README.md
 ```
 
-## Oracle/debug helpers
+## Debug helpers
 
 ```bash
 cargo run -- outline fixtures/large.md
@@ -122,25 +121,12 @@ cargo run -- sidebar-lines fixtures/small.md --files
 cargo run -- state-after-keys fixtures/small.md 'ctrl+e,right,delete'
 ```
 
-Side-by-side parity helpers compare `poneglyph` against the old Bun oracle:
+## Development checks
 
 ```bash
-./scripts/side-by-side.py fixtures/preview-rich.md --out proofs/side-by-side-preview-rich.html
-./scripts/structural-parity.py fixtures/small.md fixtures/preview-rich.md fixtures/parity-structural.md
-```
-
-## Benchmarks
-
-Compare `poneglyph` against the original Bun production oracle:
-
-```bash
-./bench/compare.sh fixtures/small.md
-./bench/compare.sh fixtures/large.md
-```
-
-Latest local result:
-
-```text
-poneglyph peak RSS: ~17 MB
-Bun oracle peak RSS: ~97 MB
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --locked
+cargo build --release --locked
+cargo package --locked --no-verify
 ```
